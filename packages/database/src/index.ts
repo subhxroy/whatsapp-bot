@@ -77,6 +77,18 @@ export interface PaymentRequest {
   updatedAt: string;
 }
 
+export interface ScheduledMessage {
+  id: string;
+  targetNumber: string;
+  targetJid: string;
+  message: string;
+  scheduledAt: string;
+  senderJid: string;
+  type: 'BIRTHDAY' | 'SCHEDULED';
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  createdAt: string;
+}
+
 let cachedDb: Firestore | null = null;
 
 export function getDb(): Firestore {
@@ -162,6 +174,7 @@ const commandConfigs = () => collection('commandConfigs');
 const autoReplies = () => collection('autoReplies');
 const auditLogs = () => collection('auditLogs');
 const payments = () => collection('payments');
+const scheduledCol = () => collection('scheduledMessages');
 
 export const db = {
   // ---------- Users ----------
@@ -531,6 +544,44 @@ export const db = {
     };
     await payments().doc(paymentId).set(updated, { merge: true });
     return updated;
+  },
+
+  // ---------- Scheduled Messages & Birthday Wishes ----------
+  async createScheduledMessage(data: {
+    targetNumber: string;
+    targetJid: string;
+    message: string;
+    scheduledAt: string;
+    senderJid: string;
+    type?: 'BIRTHDAY' | 'SCHEDULED';
+  }): Promise<ScheduledMessage> {
+    const now = nowIso();
+    const ref = scheduledCol().doc();
+    const record: ScheduledMessage = {
+      id: ref.id,
+      targetNumber: data.targetNumber,
+      targetJid: data.targetJid,
+      message: data.message,
+      scheduledAt: data.scheduledAt,
+      senderJid: data.senderJid,
+      type: data.type || 'SCHEDULED',
+      status: 'PENDING',
+      createdAt: now,
+    };
+    await ref.set(record);
+    return record;
+  },
+
+  async getPendingScheduledMessages(): Promise<ScheduledMessage[]> {
+    const snap = await scheduledCol().where('status', '==', 'PENDING').get();
+    return snap.docs.map((doc) => {
+      const data = doc.data() as Omit<ScheduledMessage, 'id'>;
+      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+    });
+  },
+
+  async markScheduledMessageSent(id: string): Promise<void> {
+    await scheduledCol().doc(id).set({ status: 'SENT' }, { merge: true });
   },
 
   // ---------- Health ----------

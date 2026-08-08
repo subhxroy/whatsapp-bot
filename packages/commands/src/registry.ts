@@ -12,6 +12,9 @@ import { groupCommand, promoteCommand, demoteCommand, kickCommand, tagAllCommand
 import { antilinkCommand } from './plugins/antilink';
 import { ytmp3Command, ytmp4Command } from './plugins/downloader';
 import { vvCommand } from './plugins/vv';
+import { birthdayCommand } from './plugins/birthday';
+import { idCommand } from './plugins/id';
+import { calcCommand } from './plugins/calc';
 
 class CommandRegistry {
   private commands: Map<string, CommandPlugin> = new Map();
@@ -41,6 +44,9 @@ class CommandRegistry {
       ytmp3Command,
       ytmp4Command,
       vvCommand,
+      birthdayCommand,
+      idCommand,
+      calcCommand,
     ];
 
     for (const cmd of defaults) {

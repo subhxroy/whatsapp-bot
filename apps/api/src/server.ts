@@ -17,6 +17,7 @@ import { registerSettingsRoutes } from './routes/settings';
 import { registerLogRoutes } from './routes/logs';
 import { registerPaymentRoutes } from './routes/payment';
 import { registerWebSocketGateway } from './websocket';
+import { startMessageScheduler } from './scheduler';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -86,6 +87,9 @@ export async function buildServer() {
   waClient.onMessage(async (msg) => {
     await dispatcher.handleMessage(msg);
   });
+
+  // Start background birthday & scheduled message delivery engine
+  startMessageScheduler(waClient);
 
   // Register Routes
   registerHealthRoutes(fastify, waClient);
