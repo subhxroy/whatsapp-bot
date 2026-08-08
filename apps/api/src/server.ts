@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
@@ -65,12 +66,20 @@ export async function buildServer() {
 
   await fastify.register(fastifyWebsocket);
 
-  // Serve static public landing page at /landing/
-  const landingPath = path.resolve(process.cwd(), 'landing');
-  await fastify.register(fastifyStatic, {
-    root: landingPath,
-    prefix: '/landing/',
-  });
+  // Serve static public landing page at /landing/ if directory exists
+  const candidateLandingPaths = [
+    path.resolve(process.cwd(), 'landing'),
+    path.resolve(process.cwd(), '../../landing'),
+    path.resolve(__dirname, '../../../landing'),
+  ];
+  const validLanding = candidateLandingPaths.find((p) => fs.existsSync(p));
+
+  if (validLanding) {
+    await fastify.register(fastifyStatic, {
+      root: validLanding,
+      prefix: '/landing/',
+    });
+  }
 
   // Authentication decorator
   fastify.decorate('authenticate', async (request: any, reply: any) => {
