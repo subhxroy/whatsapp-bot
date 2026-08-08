@@ -35,4 +35,20 @@ export function registerHealthRoutes(fastify: FastifyInstance, sessionManager: S
       timestamp: new Date().toISOString(),
     };
   });
+
+  fastify.get('/', async () => {
+    return {
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
+  });
+
+  fastify.get('/ping', async () => {
+    return {
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
+  });
 }
