@@ -1,12 +1,11 @@
 [build]
-  command = "npx pnpm --filter @private-md-bot/web build"
+  command = "pnpm --filter @private-md-bot/web build"
   publish = "apps/web/.next"
 
 [build.environment]
   NODE_VERSION = "20.18.0"
-  COREPACK_ENABLE_STRICT_CHECK = "0"
-  COREPACK_INTEGRITY_KEYS = "0"
-  PNPM_FLAGS = "--no-frozen-lockfile"
+  PNPM_VERSION = "9.15.4"
+  NETLIFY_USE_PNPM = "true"
 
 [[redirects]]
   from = "/api/*"
