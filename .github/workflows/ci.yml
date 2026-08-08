@@ -30,9 +30,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Initialize Prisma Schema
-        run: pnpm db:push
-
       - name: Build Monorepo Workspace
         run: pnpm build
 

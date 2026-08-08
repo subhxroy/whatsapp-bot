@@ -44,7 +44,7 @@ export class WhatsAppClient {
 
   public getJid(): string | undefined {
     const id = this.socket?.user?.id;
-    return id ? id.split(':')[0] + '@s.whatsapp.net' : undefined;
+    return id ? id.split(':')[0].split('@')[0] + '@s.whatsapp.net' : undefined;
   }
 
   public onMessage(handler: MessageHandler): () => void {
