@@ -15,5 +15,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  console.log('🔥 Caldera Bot Landing Page initialized. Developed by Subhankar Roy.');
+  console.log('Caldera Bot Landing Page initialized. Developed by Subhankar Roy.');
 });

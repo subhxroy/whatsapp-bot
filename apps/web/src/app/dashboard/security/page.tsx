@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Lock, ExternalLink, UserCheck, CreditCard, Check, X, RefreshCw } from 'lucide-react';
 
+const BOT_PRICE = 150;
+const BOT_CURRENCY = '₹';
+
 interface PaymentReq {
   id: string;
   userId: string;
@@ -101,7 +104,7 @@ export default function SecurityPage() {
           <div className="flex items-center gap-3">
             <CreditCard className="h-7 w-7 text-[#fc5000]" />
             <h2 className="font-display text-3xl uppercase text-[#070607]">
-              ₹150 Payment Approvals (Admin Panel)
+              {BOT_CURRENCY}{BOT_PRICE} Payment Approvals (Admin Panel)
             </h2>
           </div>
           <button
@@ -196,7 +199,7 @@ export default function SecurityPage() {
             <h2 className="font-display text-3xl uppercase text-[#070607]">Session Encryption at Rest</h2>
           </div>
           <p className="text-sm font-medium text-[#070607]/80">
-            Baileys authentication state is stored in Firestore encrypted with AES-256-GCM. The encryption key is enforced via <code className="bg-[#e2e2df] px-1.5 py-0.5 rounded text-xs text-[#070607]">SESSION_ENCRYPTION_KEY</code>.
+            Session authentication state is stored in Firestore encrypted with AES-256-GCM. The encryption key is enforced via <code className="bg-[#e2e2df] px-1.5 py-0.5 rounded text-xs text-[#070607]">SESSION_ENCRYPTION_KEY</code>.
           </p>
           <div className="rounded-[20px] bg-[#e2e2df] p-4 text-xs font-mono font-semibold text-[#070607]">
             Algorithm: AES-256-GCM (12-byte IV, 16-byte Auth Tag)

@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { ShieldCheck, CreditCard, Check, X, RefreshCw, Users, DollarSign, Activity, AlertCircle } from 'lucide-react';
 
+const BOT_PRICE = 150;
+const BOT_CURRENCY = '₹';
+
 interface PaymentReq {
   id: string;
   userId: string;
@@ -57,7 +60,7 @@ export default function AdminPortalPage() {
         body: JSON.stringify({ paymentId }),
       });
       if (res.ok) {
-        setMsg('✅ User payment approved! Access granted.');
+        setMsg('User payment approved! Access granted.');
         await fetchAdminData();
       }
     } catch {}
@@ -73,7 +76,7 @@ export default function AdminPortalPage() {
         body: JSON.stringify({ paymentId }),
       });
       if (res.ok) {
-        setMsg('❌ Payment rejected.');
+        setMsg('Payment rejected.');
         await fetchAdminData();
       }
     } catch {}
@@ -129,7 +132,7 @@ export default function AdminPortalPage() {
             <DollarSign className="h-5 w-5 text-[#2563eb]" />
           </div>
           <p className="font-display text-4xl text-[#070607]">₹{totalRevenue}</p>
-          <span className="text-[11px] font-semibold text-[#070607]/60 block">₹200 x {approvedCount} approved users</span>
+          <span className="text-[11px] font-semibold text-[#070607]/60 block">{BOT_CURRENCY}{BOT_PRICE} x {approvedCount} approved users</span>
         </div>
 
         <div className="rounded-[32px] bg-[#f7f6f2] p-6 space-y-2 border border-[#070607]/10">

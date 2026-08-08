@@ -11,6 +11,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;430;450;480;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;1,8..60,400&display=swap" rel="stylesheet">
 </head>
 <body>
+  <script>
+    const BOT_PRICE = '150';
+    const BOT_CURRENCY = '₹';
+  </script>
   <!-- Quiet Navigation Bar -->
   <header class="navbar">
     <div class="container nav-container">
@@ -26,7 +30,7 @@
       </nav>
       <div class="nav-actions">
         <a href="https://dashboard-caldera-bot.netlify.app/login" class="nav-link-text">Login →</a>
-        <a href="#pricing" class="btn btn-pill-filled">Get Access (₹150)</a>
+        <a href="#pricing" class="btn btn-pill-filled nav-btn-cta">Get Access (₹150)</a>
       </div>
     </div>
   </header>
@@ -60,7 +64,7 @@
               <span>Lead Developer</span>
             </div>
           </div>
-          <p class="artifact-metric"><script>document.write(BOT_CURRENCY + BOT_PRICE)</script> <span>/ lifetime</span></p>
+          <p class="artifact-metric">₹150 <span>/ lifetime</span></p>
           <span class="artifact-status">✓ Encrypted Session Active</span>
         </div>
 
@@ -117,16 +121,8 @@
         <span class="peach-tag">EDITORIAL SPOTLIGHT</span>
         <h3 class="peach-title">"Privacy is not about having something to hide, it's about having something to protect."</h3>
         <p class="peach-quote">
-          Caldera Bot handles your WhatsApp connection via official Baileys Web multi-device WebSockets. Message logging is strictly disabled (`MESSAGE_LOGGING=false`), ensuring zero record of your conversations exists anywhere outside your device.
+          Caldera Bot operates with end-to-end encrypted session storage using AES-256-GCM hardware-grade ciphers. Message logging is strictly disabled by default, ensuring zero record of your conversations exists anywhere outside your device. Every connection is authenticated, every key is encrypted at rest, and no telemetry ever leaves your server.
         </p>
-
-        <div class="peach-author-box">
-          <img src="https://site-compiler.netlify.app/subhankar.jpg" alt="Subhankar Roy" class="peach-author-img">
-          <div>
-            <strong class="peach-author-name">Subhankar Roy</strong>
-            <span class="peach-author-role">Creator & Systems Architect</span>
-          </div>
-        </div>
       </div>
     </div>
   </section>
@@ -200,15 +196,9 @@
     </div>
   </section>
 
-  <!-- Creator Section (Polished Profile Card) -->
+  <!-- Creator Section (Polished Profile Card without duplicate header) -->
   <section id="creator" class="section bg-fog">
     <div class="container text-center">
-      <div class="section-header">
-        <span class="category-tag">DEVELOPER</span>
-        <h2 class="heading-serif">Crafted by Subhankar Roy</h2>
-        <p class="subheading-text">Full-stack software engineer & systems architect creating high-performance private platforms.</p>
-      </div>
-
       <div class="creator-box-steep">
         <div class="creator-avatar-wrap">
           <img src="https://site-compiler.netlify.app/subhankar.jpg" alt="Subhankar Roy" class="creator-avatar-photo">

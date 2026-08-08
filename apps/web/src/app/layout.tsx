@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   keywords: [
     'WhatsApp Bot',
     'Self-Hosted WhatsApp Automation',
-    'Baileys Multi-Device Bot',
-    'TypeScript WhatsApp Bot',
+    'AES-256 Encrypted WhatsApp Bot',
+    'Private WhatsApp Multi-Device Bot',
     'Private Automation Tool',
     'Caldera Design System',
   ],

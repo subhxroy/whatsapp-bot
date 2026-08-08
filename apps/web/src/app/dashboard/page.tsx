@@ -132,9 +132,9 @@ export default function DashboardOverview() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           <div className="rounded-[24px] bg-[#e2e2df] p-6">
             <Cpu className="h-8 w-8 text-[#fc5000] mb-3" />
-            <h3 className="font-display text-2xl uppercase text-[#070607]">Isolated Baileys Adapter</h3>
+            <h3 className="font-display text-2xl uppercase text-[#070607]">Encrypted Session Layer</h3>
             <p className="text-sm font-medium text-[#070607]/80 mt-2">
-              Encapsulated inside <code className="bg-[#f7f6f2] px-1.5 py-0.5 rounded text-xs text-[#070607]">packages/whatsapp</code>. Baileys auth state encrypted at rest using AES-256-GCM.
+              All authentication state encrypted at rest using AES-256-GCM. Session keys never stored in plaintext. Isolated inside <code className="bg-[#f7f6f2] px-1.5 py-0.5 rounded text-xs text-[#070607]">packages/whatsapp</code>.
             </p>
           </div>
 

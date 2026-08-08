@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, Phone, Power, RefreshCw, CheckCircle, AlertTriangle, CreditCard, Clock, Lock } from 'lucide-react';
 
+const BOT_PRICE = 150;
+const BOT_CURRENCY = '₹';
+
 export default function WhatsAppConnectionPage() {
   const [status, setStatus] = useState<string>('DISCONNECTED');
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export default function WhatsAppConnectionPage() {
 
   const handleConnect = async () => {
     if (!isApproved) {
-      setError('Please complete ₹150 activation payment and get admin approval to connect the bot.');
+      setError('Please complete activation payment and get admin approval to connect the bot.');
       return;
     }
     setLoading(true);
@@ -99,7 +102,7 @@ export default function WhatsAppConnectionPage() {
     e.preventDefault();
     if (!phoneNumber) return;
     if (!isApproved) {
-      setError('Please complete ₹150 activation payment and get admin approval first.');
+      setError('Please complete activation payment and get admin approval first.');
       return;
     }
 
@@ -132,7 +135,7 @@ export default function WhatsAppConnectionPage() {
       const res = await fetch('/api/payment/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ utrNumber: utrNumber.trim(), amount: 150 }),
+        body: JSON.stringify({ utrNumber: utrNumber.trim(), amount: BOT_PRICE }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to submit payment details');
@@ -147,7 +150,7 @@ export default function WhatsAppConnectionPage() {
   };
 
   const upiId = 'contact.subhroy@okaxis';
-  const upiString = `upi://pay?pa=${upiId}&pn=Subhankar%20Roy&am=150.00&cu=INR&tn=Caldera%20Bot%20Activation`;
+  const upiString = `upi://pay?pa=${upiId}&pn=Subhankar%20Roy&am=${BOT_PRICE}.00&cu=INR&tn=Caldera%20Bot%20Activation`;
 
   return (
     <div className="space-y-8 text-[#070607]">
@@ -180,19 +183,19 @@ export default function WhatsAppConnectionPage() {
           <div className="flex items-center gap-3 text-[#fc5000]">
             <CreditCard className="h-8 w-8" />
             <h2 className="font-display text-3xl uppercase text-[#070607]">
-              One-Time Activation Fee (₹150)
+              One-Time Activation Fee ({BOT_CURRENCY}{BOT_PRICE})
             </h2>
           </div>
 
           <p className="text-sm font-medium text-[#070607]/80 leading-relaxed">
-            To unlock WhatsApp Bot connection privileges, please pay a <strong>₹150 one-time lifetime fee</strong> using UPI. After paying, submit your 12-digit UTR/Ref Number below for admin verification.
+            To unlock WhatsApp Bot connection privileges, please pay a <strong>{BOT_CURRENCY}{BOT_PRICE} one-time lifetime fee</strong> using UPI. After paying, submit your 12-digit UTR/Ref Number below for admin verification.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center pt-2">
             {/* UPI QR */}
             <div className="flex flex-col items-center justify-center rounded-[32px] bg-[#ffffff] p-6 border-2 border-[#070607] text-center shadow-md">
               <QRCodeSVG value={upiString} size={180} />
-              <p className="mt-3 text-xs font-bold text-[#070607] uppercase">Scan to pay ₹150 via PhonePe / GPay / Paytm</p>
+              <p className="mt-3 text-xs font-bold text-[#070607] uppercase">Scan to pay {BOT_CURRENCY}{BOT_PRICE} via PhonePe / GPay / Paytm</p>
               <div className="mt-2 rounded-full bg-[#f5f28e] px-4 py-1 text-xs font-mono font-bold text-[#070607]">
                 UPI ID: {upiId}
               </div>
@@ -228,7 +231,7 @@ export default function WhatsAppConnectionPage() {
                     disabled={submittingPayment || !utrNumber.trim()}
                     className="w-full rounded-full bg-[#fc5000] py-4 text-base font-semibold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50"
                   >
-                    {submittingPayment ? 'Submitting Reference...' : 'I Have Paid ₹150 — Submit for Approval'}
+                    {submittingPayment ? 'Submitting Reference...' : `I Have Paid ${BOT_CURRENCY}${BOT_PRICE} — Submit for Approval`}
                   </button>
                 </form>
               )}
