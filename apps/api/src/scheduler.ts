@@ -16,11 +16,10 @@ export function startMessageScheduler(sessionManager: SessionManager) {
         if (scheduledTime > now) continue;
 
         // Find the sender's session
-        const senderEmail = item.senderJid?.split('@')[0] || '';
-        const client = sessionManager.get(senderEmail) || sessionManager.getClientForMessage(item.senderJid);
+        const client = sessionManager.getClientByJid(item.senderJid);
 
         if (!client || client.getStatus() !== 'CONNECTED') {
-          console.log(`[Scheduler] No connected session for sender ${senderEmail}, skipping ${item.id}`);
+          console.log(`[Scheduler] No connected session for sender JID ${item.senderJid}, skipping ${item.id}`);
           continue;
         }
 

@@ -57,6 +57,16 @@ export class SessionManager {
     return client?.getStatus() === 'CONNECTED';
   }
 
+  getClientByJid(jid: string): WhatsAppClient | undefined {
+    const normalizedJid = jid.split(':')[0].split('@')[0] + '@s.whatsapp.net';
+    for (const [, client] of this.sessions) {
+      if (client.getStatus() === 'CONNECTED' && client.getJid() === normalizedJid) {
+        return client;
+      }
+    }
+    return undefined;
+  }
+
   getClientForMessage(senderJid: string): WhatsAppClient | undefined {
     for (const [, client] of this.sessions) {
       if (client.getStatus() === 'CONNECTED') return client;
