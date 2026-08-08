@@ -1,0 +1,26 @@
+{
+  "name": "@private-md-bot/commands",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --external firebase-admin",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch --external firebase-admin",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@private-md-bot/ai": "workspace:*",
+    "@private-md-bot/config": "workspace:*",
+    "@private-md-bot/database": "workspace:*",
+    "@private-md-bot/media": "workspace:*",
+    "@private-md-bot/security": "workspace:*",
+    "@private-md-bot/whatsapp": "workspace:*",
+    "firebase-admin": "^13.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.6",
+    "typescript": "^5.7.3"
+  }
+}

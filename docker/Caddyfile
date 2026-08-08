@@ -1,0 +1,15 @@
+{$DOMAIN:localhost} {
+    # Reverse proxy Web Dashboard
+    handle /* {
+        reverse_proxy web:3000
+    }
+
+    # Reverse proxy API & WebSocket Gateway
+    handle /api/* {
+        reverse_proxy api:4000
+    }
+
+    handle /ws {
+        reverse_proxy api:4000
+    }
+}

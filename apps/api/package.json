@@ -1,0 +1,42 @@
+{
+  "name": "@private-md-bot/api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs --dts --external firebase-admin",
+    "dev": "tsup src/index.ts --format cjs --watch --onSuccess \"node dist/index.js\" --external firebase-admin",
+    "start": "node dist/index.js",
+    "firebase:setup": "node scripts/firebase-bootstrap.js",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.0.4",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/websocket": "^11.0.2",
+    "@private-md-bot/ai": "workspace:*",
+    "@private-md-bot/commands": "workspace:*",
+    "@private-md-bot/config": "workspace:*",
+    "@private-md-bot/database": "workspace:*",
+    "@private-md-bot/media": "workspace:*",
+    "@private-md-bot/security": "workspace:*",
+    "@private-md-bot/whatsapp": "workspace:*",
+    "@types/nodemailer": "^8.0.1",
+    "bullmq": "^5.41.0",
+    "fastify": "^5.2.1",
+    "firebase-admin": "^13.4.0",
+    "ioredis": "^5.5.0",
+    "nodemailer": "^9.0.5",
+    "pino": "^9.6.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.14",
+    "tsup": "^8.3.6",
+    "typescript": "^5.7.3"
+  }
+}

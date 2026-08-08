@@ -1,0 +1,34 @@
+services:
+  # Fastify API Server & Baileys Bot Runtime
+  - type: web
+    name: private-whatsapp-bot-api
+    env: node
+    region: oregon
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm --filter @private-md-bot/api start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.0.0
+      - key: PORT
+        value: 4000
+      - key: SESSION_ENCRYPTION_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MESSAGE_LOGGING
+        value: "false"
+      - key: AI_ENABLED
+        value: "false"
+
+  # Next.js Web Control Dashboard
+  - type: web
+    name: private-whatsapp-bot-web
+    env: node
+    region: oregon
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm --filter @private-md-bot/web start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.0.0
+      - key: PORT
+        value: 3000

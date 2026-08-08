@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,500;1,9..40,500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Colors */
+  --color-ember: #fc5000;
+  --color-plasma-violet: #524ae9;
+  --color-sulfur: #f5f28e;
+  --color-limestone: #f7f6f2;
+  --color-pumice: #e2e2df;
+  --color-obsidian: #070607;
+  --color-chalk: #ffffff;
+
+  /* Typography */
+  --font-display: 'Bebas Neue', 'Anton', sans-serif;
+  --font-sans: 'DM Sans', sans-serif;
+}
+
+body {
+  color: var(--color-obsidian);
+  background-color: var(--color-pumice);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+/* Hide scrollbars utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Halftone Dot Pattern Motif */
+.halftone-pattern {
+  background-color: var(--color-plasma-violet);
+  background-image: radial-gradient(var(--color-ember) 1.5px, transparent 1.5px);
+  background-size: 12px 12px;
+}
+
+.halftone-pattern-subtle {
+  background-color: var(--color-limestone);
+  background-image: radial-gradient(var(--color-pumice) 1.5px, transparent 1.5px);
+  background-size: 10px 10px;
+}
+
+/* Shadowless flat surfaces */
+.caldera-card {
+  background-color: var(--color-limestone);
+  border-radius: 40px;
+  border: none;
+  box-shadow: none;
+}
+
+.caldera-ember-card {
+  background-color: var(--color-ember);
+  color: var(--color-chalk);
+  border-radius: 40px;
+  border: none;
+  box-shadow: none;
+}
+
+.caldera-pill {
+  border-radius: 800px;
+}
+
+/* Dotted dividers */
+.dotted-divider-v {
+  border-right: 1.5px dotted var(--color-obsidian);
+}
+
+.dotted-divider-h {
+  border-bottom: 1.5px dotted var(--color-obsidian);
+}
