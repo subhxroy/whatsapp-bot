@@ -23,6 +23,8 @@ try {
   console.warn('Firebase initialized via global or config fallback.');
 }
 
+const API_BASE_URL = 'https://caldera-bot-api.onrender.com';
+
 const authCard = document.getElementById('authCard');
 const adminDashboard = document.getElementById('adminDashboard');
 const authError = document.getElementById('authError');
@@ -112,7 +114,7 @@ function subscribeToPayments() {
 
 async function fetchFromApi() {
   try {
-    const res = await fetch('http://localhost:4000/api/payment/admin/requests');
+    const res = await fetch(`${API_BASE_URL}/api/payment/admin/requests`);
     if (res.ok) {
       const data = await res.json();
       allRequests = data.requests || [];
@@ -179,7 +181,7 @@ window.approvePayment = async function(id) {
     await db.collection('payments').doc(id).set({ status: 'APPROVED', updatedAt: new Date().toISOString() }, { merge: true });
     showNotice('✅ User payment approved! Access granted.');
   } catch {
-    await fetch('http://localhost:4000/api/payment/admin/approve', {
+    await fetch(`${API_BASE_URL}/api/payment/admin/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentId: id })
@@ -194,7 +196,7 @@ window.rejectPayment = async function(id) {
     await db.collection('payments').doc(id).set({ status: 'REJECTED', updatedAt: new Date().toISOString() }, { merge: true });
     showNotice('❌ Payment rejected.');
   } catch {
-    await fetch('http://localhost:4000/api/payment/admin/reject', {
+    await fetch(`${API_BASE_URL}/api/payment/admin/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentId: id })

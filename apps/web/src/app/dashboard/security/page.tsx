@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Lock, ShieldCheck, UserCheck, CreditCard, Check, X, RefreshCw } from 'lucide-react';
+import { Lock, ExternalLink, UserCheck, CreditCard, Check, X, RefreshCw } from 'lucide-react';
 
 interface PaymentReq {
   id: string;
@@ -69,13 +69,24 @@ export default function SecurityPage() {
 
   return (
     <div className="space-y-8 text-[#070607]">
-      <div>
-        <h1 className="font-display text-5xl uppercase tracking-tight text-[#070607]">
-          SECURITY & ACCESS CONTROLS
-        </h1>
-        <p className="text-sm font-medium text-[#070607]/70 mt-1">
-          Encryption status, payment approvals, and RBAC role hierarchy
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-5xl uppercase tracking-tight text-[#070607]">
+            SECURITY & ACCESS CONTROLS
+          </h1>
+          <p className="text-sm font-medium text-[#070607]/70 mt-1">
+            Encryption status, payment approvals, and RBAC role hierarchy
+          </p>
+        </div>
+        <a
+          href="https://admin-caldera-bot.netlify.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full bg-[#070607] px-6 py-3 text-xs font-bold text-[#ffffff] transition hover:bg-[#fc5000] hover:text-[#070607]"
+        >
+          <span>Open Master Admin Portal</span>
+          <ExternalLink className="h-4 w-4" />
+        </a>
       </div>
 
       {msg && (
