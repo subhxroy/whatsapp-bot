@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caldera Bot — Private Self-Hosted WhatsApp Control Center</title>
+  <meta name="description" content="Secure, zero-telemetry, self-hosted WhatsApp automation control center with AI assistant, view-once reveal, scheduled birthday wishes, and media tools.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <div class="logo">
+        <div class="logo-badge">🔥</div>
+        <span class="logo-text">CALDERA BOT</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#security">Privacy & Security</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#creator">Creator</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="http://localhost:3000/login" class="btn btn-secondary">Login Dashboard</a>
+        <a href="#pricing" class="btn btn-primary">Get Access (₹200)</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container hero-container">
+      <div class="hero-badge">
+        <span class="pulse-dot"></span>
+        100% Private • Zero 3rd Party Tracking • Self-Hosted
+      </div>
+      <h1 class="hero-title">
+        The Ultimate Private <br>
+        <span class="text-gradient">WhatsApp Automation</span> Control Center
+      </h1>
+      <p class="hero-subtitle">
+        Empower your WhatsApp with AI chat assistance, instant View-Once reveal, automated birthday wishes, media sticker studio, and complete group moderation. Encrypted, private, and hosted on your own server.
+      </p>
+      <div class="hero-buttons">
+        <a href="http://localhost:3000/login" class="btn btn-primary btn-lg">Launch Control Dashboard</a>
+        <a href="#features" class="btn btn-outline btn-lg">Explore Features</a>
+      </div>
+
+      <!-- Feature Pill Badges -->
+      <div class="hero-features-grid">
+        <div class="feature-badge-card">
+          <div class="icon">🔒</div>
+          <div>
+            <strong>100% Encrypted</strong>
+            <span>AES-256-GCM Session Storage</span>
+          </div>
+        </div>
+        <div class="feature-badge-card">
+          <div class="icon">⚡</div>
+          <div>
+            <strong>Instant Sync</strong>
+            <span>Sub-second Socket Response</span>
+          </div>
+        </div>
+        <div class="feature-badge-card">
+          <div class="icon">🤖</div>
+          <div>
+            <strong>AI Assistant</strong>
+            <span>Gemini AI Smart Chat</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security & Privacy Guarantee -->
+  <section id="security" class="section security-section">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">IRONCLAD GUARANTEE</span>
+        <h2>Your Messages & Privacy Are 100% Secure</h2>
+        <p>Unlike third-party cloud bots that read or store your personal conversations, Caldera Bot is designed around absolute zero-knowledge privacy.</p>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="card security-card">
+          <div class="card-icon">🛡️</div>
+          <h3>Zero 3rd-Party Tracking</h3>
+          <p>No analytics trackers, no external telemetry servers, and no advertising code. Your chats remain entirely between your device and WhatsApp servers.</p>
+        </div>
+
+        <div class="card security-card">
+          <div class="card-icon">🔐</div>
+          <h3>AES-256-GCM Session Encryption</h3>
+          <p>Your authentication tokens and multi-device keys are encrypted at rest with hardware-grade AES-256-GCM encryption before storing in Firestore.</p>
+        </div>
+
+        <div class="card security-card">
+          <div class="card-icon">👁️‍🗨️</div>
+          <h3>Message Logging Disabled</h3>
+          <p>Incoming and outgoing text message contents are processed live in-memory for commands and immediately discarded. Never written to logs or disk.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Showcase -->
+  <section id="features" class="section bg-card">
+    <div class="container">
+      <div class="section-header text-center">
+        <span class="section-tag">POWERFUL CAPABILITIES</span>
+        <h2>Feature-Packed Command Engine</h2>
+        <p>Everything you need for personal productivity, chat utilities, media generation, and group management.</p>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card feature-card">
+          <div class="feature-header">
+            <span class="cmd-pill">.vv</span>
+            <h3>Instant View-Once Reveal</h3>
+          </div>
+          <p>Quote any WhatsApp View-Once photo or video and type <code>.vv</code>. The bot instantly unlocks and sends you a permanent copy directly in your chat!</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-header">
+            <span class="cmd-pill">.birthday</span>
+            <h3>Scheduled Birthday Wishes</h3>
+          </div>
+          <p>Schedule birthday messages or reminders for any phone number directly from your self-chat. The recipient only sees the message at the exact scheduled minute!</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-header">
+            <span class="cmd-pill">.ai</span>
+            <h3>Gemini AI Smart Assistant</h3>
+          </div>
+          <p>Ask questions, generate ideas, draft emails, or summarize text instantly by typing <code>.ai &lt;query&gt;</code> in any chat.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-header">
+            <span class="cmd-pill">.sticker</span>
+            <h3>Media & Sticker Converter</h3>
+          </div>
+          <p>Convert any image, video snippet, or GIF into a high-resolution WhatsApp sticker instantly with full metadata support.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section -->
+  <section id="pricing" class="section">
+    <div class="container text-center">
+      <div class="section-header">
+        <span class="section-tag">SIMPLE MONETIZATION</span>
+        <h2>One-Time Lifetime License</h2>
+        <p>Pay once, use forever. No monthly subscriptions, no hidden fees.</p>
+      </div>
+
+      <div class="pricing-card">
+        <div class="pricing-badge">LIFETIME ACCESS</div>
+        <div class="price">
+          <span class="currency">₹</span>200
+          <span class="period">/ one-time</span>
+        </div>
+        <ul class="pricing-features">
+          <li>✓ Full Access to Web Control Center</li>
+          <li>✓ QR Code & 8-Digit Pairing Code Login</li>
+          <li>✓ Unlimited AI & Media Converter Commands</li>
+          <li>✓ Scheduled Birthday Wish Engine</li>
+          <li>✓ View-Once Unlocker (.vv)</li>
+          <li>✓ Self-Hosted Peace of Mind</li>
+        </ul>
+        <a href="http://localhost:3000/dashboard/whatsapp" class="btn btn-primary btn-lg block">Activate Dashboard (₹200)</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Creator Section -->
+  <section id="creator" class="section bg-card">
+    <div class="container text-center">
+      <div class="section-header">
+        <span class="section-tag">THE CREATOR</span>
+        <h2>Created by Subhankar Roy</h2>
+        <p>Full-Stack Engineer & AI Systems Developer committed to building private, state-of-the-art user tools.</p>
+      </div>
+
+      <div class="creator-card">
+        <div class="creator-avatar">SR</div>
+        <h3>Subhankar Roy</h3>
+        <p class="creator-bio">Lead Engineer & Architect of Caldera Bot</p>
+        <div class="creator-links">
+          <a href="https://subhankar.vercel.app" target="_blank" rel="noopener" class="btn btn-outline">Explore Portfolio</a>
+          <a href="mailto:contact.subhroy@gmail.com" class="btn btn-secondary">Email Support</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-container">
+      <p>© 2026 Caldera Bot. Developed by <strong>Subhankar Roy</strong>. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="https://subhankar.vercel.app" target="_blank">Portfolio</a>
+        <a href="mailto:contact.subhroy@gmail.com">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

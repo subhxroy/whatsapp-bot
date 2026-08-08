@@ -90,7 +90,7 @@ export default function SecurityPage() {
           <div className="flex items-center gap-3">
             <CreditCard className="h-7 w-7 text-[#fc5000]" />
             <h2 className="font-display text-3xl uppercase text-[#070607]">
-              ₹100 Payment Approvals (Admin Panel)
+              ₹200 Payment Approvals (Admin Panel)
             </h2>
           </div>
           <button

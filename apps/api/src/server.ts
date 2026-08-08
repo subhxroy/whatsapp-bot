@@ -1,9 +1,11 @@
+import path from 'path';
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyJwt from '@fastify/jwt';
 import fastifyCookie from '@fastify/cookie';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import { getEnv } from '@private-md-bot/config';
 import { WhatsAppClient } from '@private-md-bot/whatsapp';
 import { CommandDispatcher } from '@private-md-bot/commands';
@@ -62,6 +64,13 @@ export async function buildServer() {
   });
 
   await fastify.register(fastifyWebsocket);
+
+  // Serve static public landing page at /landing/
+  const landingPath = path.resolve(process.cwd(), 'landing');
+  await fastify.register(fastifyStatic, {
+    root: landingPath,
+    prefix: '/landing/',
+  });
 
   // Authentication decorator
   fastify.decorate('authenticate', async (request: any, reply: any) => {

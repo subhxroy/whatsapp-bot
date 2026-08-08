@@ -82,7 +82,7 @@ export default function AdminPortalPage() {
 
   const pendingCount = requests.filter((r) => r.status === 'PENDING').length;
   const approvedCount = requests.filter((r) => r.status === 'APPROVED').length;
-  const totalRevenue = approvedCount * 100;
+  const totalRevenue = approvedCount * 200;
 
   const filteredRequests = requests.filter((r) => {
     if (filter === 'ALL') return true;
@@ -129,7 +129,7 @@ export default function AdminPortalPage() {
             <DollarSign className="h-5 w-5 text-[#2563eb]" />
           </div>
           <p className="font-display text-4xl text-[#070607]">₹{totalRevenue}</p>
-          <span className="text-[11px] font-semibold text-[#070607]/60 block">₹100 x {approvedCount} approved users</span>
+          <span className="text-[11px] font-semibold text-[#070607]/60 block">₹200 x {approvedCount} approved users</span>
         </div>
 
         <div className="rounded-[32px] bg-[#f7f6f2] p-6 space-y-2 border border-[#070607]/10">
