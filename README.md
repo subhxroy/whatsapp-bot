@@ -1,6 +1,6 @@
-# Caldera — Private Self-Hosted WhatsApp Bot
+# Caldera Bot — Private Self-Hosted WhatsApp Bot
 
-> Forge fire on warm limestone. A production-quality, single-user WhatsApp multi-device automation bot styled with the **Caldera Design System**.
+> A production-quality, single-user WhatsApp multi-device automation bot with a **₹150 one-time UPI activation** monetization flow, styled with the **Caldera Design System**.
 
 ---
 
@@ -19,9 +19,14 @@
 ## ⚡ Tech Stack & Architecture
 
 - **Protocol**: Baileys multi-device protocol encapsulated inside `packages/whatsapp`.
-- **Backend API**: Fastify REST & WebSocket gateway (`apps/api`) with JWT auth cookies and BullMQ workers.
+- **Backend API**: Fastify REST & WebSocket gateway (`apps/api`) with JWT auth cookies, BullMQ audit workers, and a background birthday/scheduled-message scheduler.
 - **Frontend Dashboard**: Next.js 15 App Router (`apps/web`) with Tailwind CSS.
-- **Database & Security**: SQLite / PostgreSQL with Prisma ORM and Node.js native `crypto` AES-256-GCM session key encryption at rest.
+- **Database**: **Cloud Firestore** (`firebase-admin`), with Baileys session keys encrypted at rest using Node.js native `crypto` **AES-256-GCM**.
+- **Monetization**: ₹150 one-time UPI activation → UTR submission → admin approval (dashboard Admin Portal or standalone `admin/` portal) → WhatsApp access unlocked.
+- **Static Surfaces**: `landing/` (marketing) and `admin/` (standalone master admin portal), both Netlify-hosted.
+- **Deployment**: Netlify (dashboard + static sites) / Render (API + bot runtime) / optional `docker-compose.yml` self-hosting.
+
+> Full file-by-file architecture reference: see [`brain.md`](brain.md).
 
 ---
 
@@ -32,22 +37,30 @@
    pnpm install
    ```
 
-2. **Initialize Database**:
+2. **Configure Environment**:
    ```bash
-   pnpm db:push
+   cp .env.example .env
+   # Set FIREBASE_SERVICE_ACCOUNT_PATH (or place firebase-service-account.json in repo root),
+   # SESSION_ENCRYPTION_KEY, JWT_SECRET, BOT_OWNER_NUMBER, and optionally the SMTP_* vars.
    ```
 
-3. **Build Monorepo**:
+3. **Bootstrap Firestore**:
+   ```bash
+   pnpm --filter @private-md-bot/api firebase:setup
+   ```
+
+4. **Build Monorepo**:
    ```bash
    pnpm build
    ```
 
-4. **Start Development Mode**:
+5. **Start Full Stack (API + WhatsApp bot + dashboard)**:
    ```bash
-   pnpm dev
+   node server.js
    ```
    - **Dashboard**: [http://localhost:3000](http://localhost:3000)
    - **API Gateway**: [http://localhost:4000](http://localhost:4000)
+   - API-only mode (standalone backend): `API_ONLY=true node server.js`
 
 ---
 
@@ -66,23 +79,29 @@ git push -u origin main
 
 ---
 
-## 🌐 Netlify Deployment (Web Dashboard)
+## 🌐 Netlify Deployment (Web Dashboard + Static Surfaces)
 
-This repository includes a pre-configured [`netlify.toml`](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/netlify.toml) file.
+This repository includes a pre-configured [`netlify.toml`](netlify.toml) file.
 
 1. Connect your GitHub repository to [Netlify](https://www.netlify.com/).
-2. Set Build Command: `pnpm --filter @private-md-bot/web build`
-3. Set Publish Directory: `apps/web/.next`
-4. Netlify will automatically detect `@netlify/plugin-nextjs`.
+2. Build command: `pnpm --filter @private-md-bot/web build` · Publish directory: `apps/web/.next`.
+3. `/api/*` requests are redirected to the Render backend (`caldera-bot-api.onrender.com`).
+4. Deploy `landing/` and `admin/` as separate static sites (e.g. `caldera-bot.netlify.app` and `admin-caldera-bot.netlify.app`).
 
 ---
 
 ## ☁️ Render Deployment (API & Web)
 
-This repository includes a pre-configured [`render.yaml`](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/render.yaml) Blueprint file.
+This repository includes a pre-configured [`render.yaml`](render.yaml) Blueprint file.
 
 1. Connect your repository to [Render.com](https://render.com/).
-2. Click **New +** $\rightarrow$ **Blueprint**.
+2. Click **New +** → **Blueprint**.
 3. Select this repository. Render will automatically provision:
-   - `private-whatsapp-bot-api` (Fastify API backend)
+   - `private-whatsapp-bot-api` (Fastify API backend, auto-generates `SESSION_ENCRYPTION_KEY` / `JWT_SECRET`)
    - `private-whatsapp-bot-web` (Next.js Dashboard)
+
+---
+
+## 🐳 Self-Hosted Docker (Optional)
+
+`docker-compose.yml` provisions `redis`, `api`, `web`, and a `caddy` reverse proxy. Requires `firebase-service-account.json` in the repo root and the same env keys as local development.
