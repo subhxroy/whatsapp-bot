@@ -88,9 +88,13 @@ async function main() {
       console.log('✓ API build found — skipping build');
     }
 
-    if (!existsSync(WEB_BUILD_ID)) {
-      await runCommand('pnpm', ['--filter', '@private-md-bot/web', 'build'], ROOT, 'web dashboard');
-    } else {
+    if (process.env.API_ONLY !== 'true' && !existsSync(WEB_BUILD_ID)) {
+      try {
+        await runCommand('pnpm', ['--filter', '@private-md-bot/web', 'build'], ROOT, 'web dashboard');
+      } catch (e) {
+        console.log('ℹ Web build skipped or standalone deployment mode');
+      }
+    } else if (process.env.API_ONLY !== 'true') {
       console.log('✓ Web build found — skipping build');
     }
   } catch (err) {
@@ -101,18 +105,24 @@ async function main() {
   patchRoutesManifest();
 
   const api = startService('api', NODE, [API_DIST], API_DIR);
-  const web = startService(
-    'web',
-    NODE,
-    [path.join(WEB_DIR, 'node_modules', 'next', 'dist', 'bin', 'next'), 'start', '-p', '3000'],
-    WEB_DIR
-  );
+  api.once('spawn', () => console.log('✓ API server starting on http://localhost:4000'));
 
-  await new Promise((resolve) => {
-    api.once('spawn', () => console.log('✓ API server starting on http://localhost:4000'));
+  // Find Next.js executable across monorepo hoisted node_modules
+  const nextBinCandidates = [
+    path.join(WEB_DIR, 'node_modules', 'next', 'dist', 'bin', 'next'),
+    path.join(ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'),
+    path.join(ROOT, 'node_modules', '.bin', 'next'),
+  ];
+  const nextBin = nextBinCandidates.find((p) => existsSync(p));
+
+  const shouldStartWeb = process.env.API_ONLY !== 'true' && nextBin;
+
+  if (shouldStartWeb && nextBin) {
+    const web = startService('web', NODE, [nextBin, 'start', '-p', '3000'], WEB_DIR);
     web.once('spawn', () => console.log('✓ Web dashboard starting on http://localhost:3000\n'));
-    setTimeout(resolve, 1500);
-  });
+  } else {
+    console.log('ℹ Running API Backend mode (Web dashboard hosted on Netlify)\n');
+  }
 
   console.log('Services running. Press Ctrl+C to stop.\n');
 }
