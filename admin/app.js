@@ -101,7 +101,6 @@ function showError(msg) {
 
 // Real-time Firestore Payments Listener
 function subscribeToPayments() {
-  // Query backend or Firestore 'payments' collection
   db.collection('payments').onSnapshot((snap) => {
     allRequests = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     renderDashboard();
@@ -125,13 +124,13 @@ async function fetchFromApi() {
 function renderDashboard() {
   const pending = allRequests.filter(r => r.status === 'PENDING').length;
   const approved = allRequests.filter(r => r.status === 'APPROVED').length;
-  const totalRev = approved * 200;
+  const totalRev = approved * 150;
 
   pendingCountEl.textContent = pending;
   approvedCountEl.textContent = approved;
   totalCountEl.textContent = allRequests.length;
   totalRevenueEl.textContent = `₹${totalRev}`;
-  revenueSubEl.textContent = `₹200 x ${approved} approved users`;
+  revenueSubEl.textContent = `₹150 x ${approved} approved users`;
 
   // Render Table
   renderTable();
@@ -152,7 +151,7 @@ function renderTable() {
     <tr>
       <td><strong>${req.userEmail || req.userId}</strong></td>
       <td class="font-mono text-blue font-bold">${req.utrNumber}</td>
-      <td><strong>₹${req.amount || 200}</strong></td>
+      <td><strong>₹${req.amount || 150}</strong></td>
       <td><span class="status-badge status-${req.status}">${req.status}</span></td>
       <td>${new Date(req.createdAt).toLocaleString()}</td>
       <td class="text-right">
