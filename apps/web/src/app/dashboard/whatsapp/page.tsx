@@ -240,7 +240,9 @@ export default function WhatsAppConnectionPage() {
         </div>
       )}
 
-      {/* Status Bar */}
+      {/* Status Bar + Connection Methods — only visible after payment approval */}
+      {isApproved && (
+        <>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-[40px] bg-[#f7f6f2] p-8">
         <div className="flex items-center gap-5">
           <div
@@ -265,11 +267,11 @@ export default function WhatsAppConnectionPage() {
           {status !== 'CONNECTED' ? (
             <button
               onClick={handleConnect}
-              disabled={loading || !isApproved}
+              disabled={loading}
               className="flex items-center gap-2.5 rounded-full bg-[#fc5000] px-8 py-4 text-base font-semibold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50"
             >
-              {!isApproved ? <Lock className="h-5 w-5" /> : <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />}
-              <span>{!isApproved ? 'Approval Required' : loading ? 'Initializing Socket...' : 'Connect Bot'}</span>
+              <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Initializing Socket...' : 'Connect Bot'}</span>
             </button>
           ) : (
             <button
@@ -285,7 +287,7 @@ export default function WhatsAppConnectionPage() {
       </div>
 
       {/* Auth Methods */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 ${!isApproved ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Method 1: QR Code */}
         <div className="rounded-[40px] bg-[#f7f6f2] p-8 flex flex-col items-center justify-center text-center">
           <div className="mb-6 flex items-center gap-2 font-display text-2xl uppercase text-[#070607]">
@@ -363,6 +365,8 @@ export default function WhatsAppConnectionPage() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
