@@ -126,10 +126,13 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
         });
         await logAudit('INITIAL_SETUP', email, 'Owner account created via Google sign-in', request.ip);
       } else {
-        await logAudit('LOGIN_FAILED', email, 'Google email not linked to a dashboard account', request.ip);
-        return reply
-          .status(403)
-          .send({ error: 'No dashboard account is linked to this Google email' });
+        user = await db.createUser({
+          username: email,
+          passwordHash: '',
+          role: 'USER',
+          googleUid: payload.uid,
+        });
+        await logAudit('USER_CREATED', email, 'New user account created via Google sign-in', request.ip);
       }
     } else if (user.googleUid !== payload.uid) {
       await db.setUserGoogleUid(email, payload.uid);
