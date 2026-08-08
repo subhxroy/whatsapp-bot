@@ -1,19 +1,18 @@
 import './globals.css';
 import { Metadata } from 'next';
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://caldera-whatsapp-bot.com';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dashboard-caldera-bot.netlify.app';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Caldera — Self-Hosted Private WhatsApp Automation Bot',
+    default: 'Caldera — Private WhatsApp Automation Bot',
     template: '%s | Caldera Bot',
   },
   description:
-    'Production-grade self-hosted WhatsApp multi-device bot with AES-256 session encryption at rest, prefix commands, media conversion, and zero-telemetry defaults.',
+    'Production-grade WhatsApp multi-device bot with AES-256 session encryption at rest, prefix commands, media conversion, and zero-telemetry defaults.',
   keywords: [
     'WhatsApp Bot',
-    'Self-Hosted WhatsApp Automation',
     'AES-256 Encrypted WhatsApp Bot',
     'Private WhatsApp Multi-Device Bot',
     'Private Automation Tool',
@@ -37,9 +36,9 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: siteUrl,
-    title: 'Caldera — Self-Hosted Private WhatsApp Automation Bot',
+    title: 'Caldera — Private WhatsApp Automation Bot',
     description:
-      'Private self-hosted WhatsApp multi-device bot control center running AES-256 encryption at rest and strict zero-telemetry privacy defaults.',
+      'Private WhatsApp multi-device bot control center running AES-256 encryption at rest and strict zero-telemetry privacy defaults.',
     siteName: 'Caldera Bot',
     images: [
       {
@@ -52,9 +51,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Caldera — Self-Hosted Private WhatsApp Automation Bot',
+    title: 'Caldera — Private WhatsApp Automation Bot',
     description:
-      'Private self-hosted WhatsApp multi-device bot control center running AES-256 encryption at rest and strict zero-telemetry privacy defaults.',
+      'Private WhatsApp multi-device bot control center running AES-256 encryption at rest and strict zero-telemetry privacy defaults.',
     images: [`${siteUrl}/og-image.png`],
   },
   alternates: {
@@ -75,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       priceCurrency: 'USD',
     },
     description:
-      'Self-hosted, single-user private WhatsApp multi-device automation bot with AES-256 session encryption at rest and Caldera design dashboard.',
+      'Private WhatsApp multi-device automation bot with AES-256 session encryption at rest and Caldera design dashboard.',
   };
 
   return (

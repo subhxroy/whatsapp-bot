@@ -6,6 +6,9 @@ node_modules
 .next
 out
 
+# Turborepo cache
+.turbo
+
 # TypeScript / Build outputs
 dist
 build

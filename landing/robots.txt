@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://caldera-bot.netlify.app/sitemap.xml

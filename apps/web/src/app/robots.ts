@@ -1,13 +1,12 @@
 import { MetadataRoute } from 'next';
 
-export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://caldera-whatsapp-bot.com';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://dashboard-caldera-bot.netlify.app';
 
+export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
         disallow: ['/dashboard/', '/api/'],
       },
     ],

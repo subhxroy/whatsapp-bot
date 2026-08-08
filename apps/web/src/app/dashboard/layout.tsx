@@ -77,7 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   CALDERA BOT
                 </h2>
                 <span className="text-[11px] font-medium text-[#070607]/70 block -mt-1">
-                  Self-Hosted Control Center
+                  Private Control Center
                 </span>
               </div>
             </div>
