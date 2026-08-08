@@ -15,6 +15,10 @@ import { vvCommand } from './plugins/vv';
 import { birthdayCommand } from './plugins/birthday';
 import { idCommand } from './plugins/id';
 import { calcCommand } from './plugins/calc';
+import { pollCommand } from './plugins/poll';
+import { toAudioCommand } from './plugins/toaudio';
+import { toGifCommand } from './plugins/togif';
+import { adminsCommand } from './plugins/admins';
 
 class CommandRegistry {
   private commands: Map<string, CommandPlugin> = new Map();
@@ -47,6 +51,10 @@ class CommandRegistry {
       birthdayCommand,
       idCommand,
       calcCommand,
+      pollCommand,
+      toAudioCommand,
+      toGifCommand,
+      adminsCommand,
     ];
 
     for (const cmd of defaults) {
