@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caldera Bot — Standalone Master Admin Portal</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="admin-header">
+    <div class="header-container">
+      <div class="logo">
+        <span class="logo-icon">🔥</span>
+        <span class="logo-title">CALDERA ADMIN</span>
+        <span class="badge-tag">Standalone Netlify Portal</span>
+      </div>
+      <div id="userInfo" class="user-info" style="display: none;">
+        <span id="userEmailTag" class="user-email"></span>
+        <button id="logoutBtn" class="btn btn-secondary btn-sm">Sign Out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <!-- Auth Card (Login View) -->
+    <div id="authCard" class="auth-card">
+      <div class="auth-header">
+        <div class="shield-icon">🛡️</div>
+        <h2>Master Admin Login</h2>
+        <p>Restricted Access Portal. Authenticate using an authorized master administrator account.</p>
+      </div>
+
+      <div id="authError" class="alert alert-error" style="display: none;"></div>
+
+      <button id="googleLoginBtn" class="btn btn-google btn-lg">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.41-1.57-5.13-3.72L.97 13.04C2.45 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.87 10.8c-.19-.53-.3-1.1-.3-1.8s.11-1.27.29-1.8L.97 4.96C.35 6.18 0 7.55 0 9s.35 2.82.97 4.04l2.9-2.24z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.45 2.02.97 4.96l2.9 2.24C4.59 5.05 6.62 3.58 9 3.58z"/></svg>
+        Sign in with Google
+      </button>
+
+      <div class="auth-divider"><span>OR</span></div>
+
+      <form id="emailLoginForm" class="auth-form">
+        <input type="email" id="loginEmail" placeholder="Admin Email (contact.subhroy@gmail.com)" required>
+        <input type="password" id="loginPassword" placeholder="Password" required>
+        <button type="submit" class="btn btn-primary btn-block">Log In to Portal</button>
+      </form>
+
+      <div class="allowed-accounts-notice">
+        <strong>Authorized Administrators Only:</strong><br>
+        <code>contact.subhroy@gmail.com</code> • <code>aarxslan@gmail.com</code>
+      </div>
+    </div>
+
+    <!-- Admin Dashboard View (Shown after verified auth) -->
+    <div id="adminDashboard" class="dashboard-view" style="display: none;">
+      <!-- KPI Stats -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <span class="kpi-label">Pending Approvals</span>
+          <span id="pendingCount" class="kpi-value">0</span>
+          <span class="kpi-sub">Awaiting UTR verification</span>
+        </div>
+
+        <div class="kpi-card">
+          <span class="kpi-label">Total Revenue</span>
+          <span id="totalRevenue" class="kpi-value text-green">₹0</span>
+          <span id="revenueSub" class="kpi-sub">₹200 x 0 approved users</span>
+        </div>
+
+        <div class="kpi-card">
+          <span class="kpi-label">Approved Users</span>
+          <span id="approvedCount" class="kpi-value text-blue">0</span>
+          <span class="kpi-sub">Unlocked bot access</span>
+        </div>
+
+        <div class="kpi-card">
+          <span class="kpi-label">Total Submissions</span>
+          <span id="totalCount" class="kpi-value">0</span>
+          <span class="kpi-sub">Lifetime requests</span>
+        </div>
+      </div>
+
+      <!-- Main Payments Approval Table Card -->
+      <div class="table-card">
+        <div class="table-header">
+          <div>
+            <h2>Activation Payment Approvals (₹200)</h2>
+            <p>Review UTR numbers submitted by users. Click Approve to grant instant WhatsApp bot connection privileges.</p>
+          </div>
+          <div class="filter-pills">
+            <button class="filter-btn active" data-filter="ALL">All</button>
+            <button class="filter-btn" data-filter="PENDING">Pending</button>
+            <button class="filter-btn" data-filter="APPROVED">Approved</button>
+            <button class="filter-btn" data-filter="REJECTED">Rejected</button>
+          </div>
+        </div>
+
+        <div id="actionNotice" class="alert alert-success" style="display: none;"></div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>User Email / ID</th>
+                <th>12-Digit UTR Ref No.</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Submitted At</th>
+                <th class="text-right">Approval Actions</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTableBody">
+              <tr>
+                <td colspan="6" class="text-center py-6">Loading payments data from Firestore...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
