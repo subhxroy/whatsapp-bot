@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   QrCode,
+  ShieldCheck,
   Terminal,
   MessageSquare,
   Bot,
@@ -22,6 +23,7 @@ import {
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: QrCode },
+  { href: '/dashboard/admin', label: 'Admin Portal', icon: ShieldCheck },
   { href: '/dashboard/commands', label: 'Commands', icon: Terminal },
   { href: '/dashboard/auto-reply', label: 'Auto-Reply', icon: MessageSquare },
   { href: '/dashboard/ai', label: 'AI Assistant', icon: Bot },
