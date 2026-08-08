@@ -1,4 +1,5 @@
 import { WhatsAppClient } from '@private-md-bot/whatsapp';
+import { CommandDispatcher } from '@private-md-bot/commands';
 import { db } from '@private-md-bot/database';
 import pino from 'pino';
 
@@ -13,8 +14,12 @@ export class SessionManager {
     let client = this.sessions.get(userId);
     if (!client) {
       client = new WhatsAppClient(`user_${userId}`);
+      const dispatcher = new CommandDispatcher(client);
+      client.onMessage(async (msg) => {
+        await dispatcher.handleMessage(msg);
+      });
       this.sessions.set(userId, client);
-      logger.info({ userId }, 'Created new WhatsApp session');
+      logger.info({ userId }, 'Created new WhatsApp session with command dispatcher');
     }
     return client;
   }
