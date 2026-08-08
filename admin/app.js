@@ -1,11 +1,11 @@
 // Standalone Netlify Admin Portal Logic
 const firebaseConfig = {
-  apiKey: "AIzaSyDummyKey_ReplacedByFirebaseConfig",
+  apiKey: "AIzaSyBRb2LpYI5_jSyTV5jzFytkPymJkSp494Y",
   authDomain: "openify-studio.firebaseapp.com",
   projectId: "openify-studio",
-  storageBucket: "openify-studio.appspot.com",
-  messagingSenderId: "8938483736",
-  appId: "1:8938483736:web:dummy"
+  storageBucket: "openify-studio.firebasestorage.app",
+  messagingSenderId: "273942133834",
+  appId: "1:273942133834:web:59c945d16ece86d498fab3"
 };
 
 // Allowed Master Admin Accounts (NOBODY ELSE CAN ACCESS)
