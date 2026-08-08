@@ -1,47 +1,56 @@
 import { FastifyInstance } from 'fastify';
-import { WhatsAppClient } from '@private-md-bot/whatsapp';
+import { SessionManager } from './session-manager';
 import { WebSocket } from 'ws';
 
-export function registerWebSocketGateway(fastify: FastifyInstance, waClient: WhatsAppClient) {
-  const clients = new Set<WebSocket>();
-
-  waClient.onStatusChange((status, qr) => {
-    const payload = JSON.stringify({ type: 'STATUS_UPDATE', status, qr });
-    clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
-      }
-    });
-  });
+export function registerWebSocketGateway(fastify: FastifyInstance, sessionManager: SessionManager) {
+  const userSockets = new Map<string, Set<WebSocket>>();
 
   fastify.get('/ws', { websocket: true }, (socket, req) => {
-    // Authenticate WS connection using JWT token from query string or cookie
     const token = (req.query as any)?.token || req.cookies?.token;
     if (!token) {
       socket.close(4001, 'Unauthorized');
       return;
     }
 
+    let userId: string;
     try {
-      fastify.jwt.verify(token);
+      const decoded = fastify.jwt.verify(token) as { id?: string; username?: string };
+      userId = decoded?.id || decoded?.username || '';
     } catch {
       socket.close(4001, 'Unauthorized');
       return;
     }
 
-    clients.add(socket);
+    if (!userId) {
+      socket.close(4001, 'Unauthorized');
+      return;
+    }
+
+    // Track this socket for this user
+    if (!userSockets.has(userId)) {
+      userSockets.set(userId, new Set());
+
+      // Subscribe to status changes for this user
+      const client = sessionManager.get(userId);
+      if (client) {
+        client.onStatusChange((status, qr) => {
+          const sockets = userSockets.get(userId);
+          if (!sockets) return;
+          const payload = JSON.stringify({ type: 'STATUS_UPDATE', status, qr });
+          sockets.forEach((s) => {
+            if (s.readyState === WebSocket.OPEN) s.send(payload);
+          });
+        });
+      }
+    }
+    userSockets.get(userId)!.add(socket);
 
     // Send immediate initial status
-    socket.send(
-      JSON.stringify({
-        type: 'STATUS_UPDATE',
-        status: waClient.getStatus(),
-        qr: waClient.getQRCode(),
-      })
-    );
+    const { status, qrCode } = sessionManager.getStatus(userId);
+    socket.send(JSON.stringify({ type: 'STATUS_UPDATE', status, qr: qrCode }));
 
     socket.on('close', () => {
-      clients.delete(socket);
+      userSockets.get(userId)?.delete(socket);
     });
   });
 }

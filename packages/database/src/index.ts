@@ -183,6 +183,14 @@ export const db = {
     return snap.data().count;
   },
 
+  async getAllUsers(): Promise<User[]> {
+    const snap = await users().get();
+    return snap.docs.map((doc) => {
+      const data = doc.data() as Omit<User, 'id'>;
+      return { ...data, id: doc.id, username: data.username ?? doc.id };
+    });
+  },
+
   async createUser(data: {
     username: string;
     passwordHash: string;

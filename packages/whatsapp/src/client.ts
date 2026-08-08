@@ -26,8 +26,13 @@ export class WhatsAppClient {
   private reconnectAttempts = 0;
   private recentMessages: Map<string, proto.IWebMessageInfo> = new Map();
   private processedMsgIds: Set<string> = new Set();
+  private sessionKey: string;
 
   private static readonly MAX_CACHED_MESSAGES = 300;
+
+  constructor(sessionKey: string = 'default_session') {
+    this.sessionKey = sessionKey;
+  }
 
   public getStatus(): ConnectionStatus {
     return this.status;
@@ -76,7 +81,7 @@ export class WhatsAppClient {
     this.setStatus('CONNECTING');
 
     try {
-      const { state, saveCreds } = await useFirebaseAuthState();
+      const { state, saveCreds } = await useFirebaseAuthState(this.sessionKey);
       const { version } = await fetchLatestBaileysVersion();
 
       this.socket = makeWASocket({
@@ -104,7 +109,7 @@ export class WhatsAppClient {
 
           if (isLoggedOut) {
             logger.warn('WhatsApp session logged out by user — clearing auth store');
-            await clearFirebaseAuthState();
+            await clearFirebaseAuthState(this.sessionKey);
             this.socket = null;
             this.setStatus('DISCONNECTED');
             setTimeout(() => this.connect(), 500);

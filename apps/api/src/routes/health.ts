@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '@private-md-bot/database';
-import { WhatsAppClient } from '@private-md-bot/whatsapp';
+import { SessionManager } from '../session-manager';
 
-export function registerHealthRoutes(fastify: FastifyInstance, waClient: WhatsAppClient) {
+export function registerHealthRoutes(fastify: FastifyInstance, sessionManager: SessionManager) {
   fastify.get('/api/health', async () => {
     return {
       status: 'ok',
@@ -13,7 +13,7 @@ export function registerHealthRoutes(fastify: FastifyInstance, waClient: WhatsAp
 
   fastify.get('/api/ready', async (request, reply) => {
     let dbStatus = 'down';
-    let waStatus = waClient.getStatus();
+    const connectedSessions = sessionManager.getConnectedCount();
 
     try {
       await db.ping();
@@ -30,7 +30,7 @@ export function registerHealthRoutes(fastify: FastifyInstance, waClient: WhatsAp
       ready: isReady,
       services: {
         database: dbStatus,
-        whatsapp: waStatus,
+        activeSessions: connectedSessions,
       },
       timestamp: new Date().toISOString(),
     };

@@ -8,8 +8,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { getEnv } from '@private-md-bot/config';
-import { WhatsAppClient } from '@private-md-bot/whatsapp';
-import { CommandDispatcher } from '@private-md-bot/commands';
+import { SessionManager } from './session-manager';
 
 import { registerHealthRoutes } from './routes/health';
 import { registerAuthRoutes } from './routes/auth';
@@ -98,27 +97,22 @@ export async function buildServer() {
     reply.status(statusCode).send({ error: message });
   });
 
-  // WhatsApp Client & Dispatcher initialization
-  const waClient = new WhatsAppClient();
-  const dispatcher = new CommandDispatcher(waClient);
-
-  waClient.onMessage(async (msg) => {
-    await dispatcher.handleMessage(msg);
-  });
+  // Session Manager for multi-tenant WhatsApp connections
+  const sessionManager = new SessionManager();
 
   // Start background birthday & scheduled message delivery engine
-  startMessageScheduler(waClient);
+  startMessageScheduler(sessionManager);
 
   // Register Routes
-  registerHealthRoutes(fastify, waClient);
+  registerHealthRoutes(fastify, sessionManager);
   registerAuthRoutes(fastify);
-  registerWhatsAppRoutes(fastify, waClient);
+  registerWhatsAppRoutes(fastify, sessionManager);
   registerCommandRoutes(fastify);
   registerAutoReplyRoutes(fastify);
   registerSettingsRoutes(fastify);
   registerLogRoutes(fastify);
-  registerPaymentRoutes(fastify);
-  registerWebSocketGateway(fastify, waClient);
+  registerPaymentRoutes(fastify, sessionManager);
+  registerWebSocketGateway(fastify, sessionManager);
 
-  return { fastify, waClient };
+  return { fastify, sessionManager };
 }

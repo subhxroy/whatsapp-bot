@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '@private-md-bot/database';
 import { sendPaymentNotificationEmail } from '../services/email';
+import { SessionManager } from '../session-manager';
 
-export async function registerPaymentRoutes(fastify: FastifyInstance) {
+export async function registerPaymentRoutes(fastify: FastifyInstance, sessionManager: SessionManager) {
   // Get payment status for current authenticated user
   fastify.get('/api/payment/status', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const user = request.user as { username?: string; email?: string; id?: string };
@@ -99,6 +100,14 @@ export async function registerPaymentRoutes(fastify: FastifyInstance) {
       details: `Approved payment ${paymentId} for user ${updated.userEmail}`,
       ipAddress: request.ip,
     });
+
+    // Auto-connect the approved user's WhatsApp session
+    const approvedUserId = updated.userEmail || updated.userId;
+    if (approvedUserId) {
+      sessionManager.connect(approvedUserId).catch((err: any) => {
+        console.error(`[Payment] Auto-connect failed for ${approvedUserId}:`, err.message);
+      });
+    }
 
     return reply.send({ message: 'Payment approved successfully', request: updated });
   });
