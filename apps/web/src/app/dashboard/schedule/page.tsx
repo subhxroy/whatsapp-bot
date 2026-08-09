@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Clock, Calendar, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Clock, Calendar, CheckCircle2, AlertCircle, Sparkles, X } from 'lucide-react';
 
 interface ScheduledMsgItem {
   id: string;
@@ -57,6 +57,17 @@ export default function SchedulePage() {
     const interval = setInterval(fetchScheduledMessages, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showModal]);
 
   // Compute 24h format for backend calculation
   const selectedTime24 = useMemo(() => {
@@ -311,11 +322,21 @@ export default function SchedulePage() {
         )}
       </div>
 
-      {/* Modal - Fixed Overflow & Cutoff with max-h-[90vh] & clean 12h AM/PM Clock */}
+      {/* Modal - Fixed Overflow, Body Lock, Sleek Padded Scrollbar & Clean 12h Clock */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070607]/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-[40px] bg-[#f7f6f2] p-6 sm:p-8 shadow-2xl space-y-5 text-[#070607] my-auto max-h-[90vh] overflow-y-auto">
-            <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">Schedule Message</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070607]/75 backdrop-blur-md p-4 sm:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-xl rounded-[40px] bg-[#f7f6f2] p-6 sm:p-8 shadow-2xl space-y-5 text-[#070607] my-auto max-h-[88vh] overflow-y-auto custom-scrollbar border border-[#070607]/10">
+            <div className="flex items-center justify-between pb-2 border-b border-dotted border-[#070607]/20">
+              <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">Schedule Message</h2>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="rounded-full bg-[#e2e2df] p-2 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                title="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
             
             <form onSubmit={handleCreateSchedule} className="space-y-4">
               <div>
@@ -381,8 +402,8 @@ export default function SchedulePage() {
                 </div>
 
                 {/* Custom 12-Hour Selector Inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 items-end">
+                  <div className="sm:col-span-5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#070607]/60 block mb-1">
                       Target Date
                     </span>
@@ -396,16 +417,16 @@ export default function SchedulePage() {
                   </div>
 
                   {/* 12-Hour AM/PM Time Selector */}
-                  <div>
+                  <div className="sm:col-span-7">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#070607]/60 block mb-1">
                       Target Time (12h Clock)
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
                       {/* Hour Dropdown (1-12) */}
                       <select
                         value={hour12}
                         onChange={(e) => setHour12(parseInt(e.target.value, 10))}
-                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none"
+                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none min-w-[60px]"
                       >
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
                           <option key={h} value={h}>
@@ -420,7 +441,7 @@ export default function SchedulePage() {
                       <select
                         value={minute12}
                         onChange={(e) => setMinute12(e.target.value)}
-                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none"
+                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none min-w-[60px]"
                       >
                         {minutesList.map((m) => (
                           <option key={m} value={m}>
@@ -430,11 +451,11 @@ export default function SchedulePage() {
                       </select>
 
                       {/* AM/PM Toggle Pills */}
-                      <div className="flex items-center bg-[#f7f6f2] p-1 rounded-full border border-[#070607]/10 ml-auto">
+                      <div className="flex items-center bg-[#f7f6f2] p-1 rounded-full border border-[#070607]/10 flex-shrink-0 ml-auto">
                         <button
                           type="button"
                           onClick={() => setAmpm('AM')}
-                          className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full transition ${
+                          className={`px-3 py-1 text-[11px] font-extrabold rounded-full transition ${
                             ampm === 'AM'
                               ? 'bg-[#fc5000] text-[#070607]'
                               : 'text-[#070607]/60 hover:text-[#070607]'
@@ -445,7 +466,7 @@ export default function SchedulePage() {
                         <button
                           type="button"
                           onClick={() => setAmpm('PM')}
-                          className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full transition ${
+                          className={`px-3 py-1 text-[11px] font-extrabold rounded-full transition ${
                             ampm === 'PM'
                               ? 'bg-[#fc5000] text-[#070607]'
                               : 'text-[#070607]/60 hover:text-[#070607]'

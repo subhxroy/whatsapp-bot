@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MessageSquare, Target } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, Target, X } from 'lucide-react';
 
 interface AutoReplyRule {
   id: string;
@@ -44,6 +44,17 @@ export default function AutoReplyPage() {
   useEffect(() => {
     fetchRules();
   }, []);
+
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showModal]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,9 +182,20 @@ export default function AutoReplyPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-[#070607]/60 backdrop-blur-sm p-4 z-50">
-          <div className="w-full max-w-lg rounded-[40px] bg-[#f7f6f2] p-8 shadow-2xl space-y-6 text-[#070607]">
-            <h2 className="font-display text-4xl uppercase text-[#070607]">Create Auto-Reply Rule</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070607]/75 backdrop-blur-md p-4 sm:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-xl rounded-[40px] bg-[#f7f6f2] p-6 sm:p-8 shadow-2xl space-y-6 text-[#070607] my-auto max-h-[88vh] overflow-y-auto custom-scrollbar border border-[#070607]/10">
+            <div className="flex items-center justify-between pb-2 border-b border-dotted border-[#070607]/20">
+              <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">Create Auto-Reply Rule</h2>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="rounded-full bg-[#e2e2df] p-2 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                title="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
@@ -265,3 +287,4 @@ export default function AutoReplyPage() {
     </div>
   );
 }
+
