@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Clock, Calendar, CheckCircle2, AlertCircle, Sparkles, X } from 'lucide-react';
+import { Plus, Trash2, Clock, Calendar, CheckCircle2, AlertCircle, Sparkles, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface ScheduledMsgItem {
   id: string;
@@ -97,11 +97,11 @@ export default function SchedulePage() {
     setSelectedDate(`${year}-${month}-${day}`);
 
     const rawHours = d.getHours();
-    const roundedMins = Math.floor(d.getMinutes() / 5) * 5;
+    const exactMins = d.getMinutes();
     
     setAmpm(rawHours >= 12 ? 'PM' : 'AM');
     setHour12(rawHours % 12 || 12);
-    setMinute12(String(roundedMins).padStart(2, '0'));
+    setMinute12(String(exactMins).padStart(2, '0'));
   };
 
   // Formatted preview computation
@@ -401,8 +401,8 @@ export default function SchedulePage() {
                   </button>
                 </div>
 
-                {/* Custom 12-Hour Selector Inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 items-end">
+                {/* Custom Digital Alarm Clock Style Time Selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 items-center">
                   <div className="sm:col-span-5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#070607]/60 block mb-1">
                       Target Date
@@ -412,50 +412,131 @@ export default function SchedulePage() {
                       required
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-4 text-xs font-semibold text-[#070607] focus:border-[#fc5000] focus:outline-none"
+                      className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-3 px-4 text-xs font-semibold text-[#070607] focus:border-[#fc5000] focus:outline-none"
                     />
                   </div>
 
-                  {/* 12-Hour AM/PM Time Selector */}
+                  {/* Alarm Clock Style Digital Picker */}
                   <div className="sm:col-span-7">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#070607]/60 block mb-1">
-                      Target Time (12h Clock)
+                      Target Time (12h Alarm Clock Format)
                     </span>
-                    <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
-                      {/* Hour Dropdown (1-12) */}
-                      <select
-                        value={hour12}
-                        onChange={(e) => setHour12(parseInt(e.target.value, 10))}
-                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none min-w-[60px]"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
-                          <option key={h} value={h}>
-                            {String(h).padStart(2, '0')}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="flex items-center gap-2 bg-[#f7f6f2] p-2 rounded-[24px] border border-[#070607]/15">
+                      {/* Hour Display & Steppers */}
+                      <div className="flex items-center gap-1 bg-[#e2e2df] rounded-full px-2 py-1">
+                        <button
+                          type="button"
+                          onClick={() => setHour12((h) => (h >= 12 ? 1 : h + 1))}
+                          className="p-1 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] rounded-full transition"
+                          title="Increase Hour"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={String(hour12).padStart(2, '0')}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val)) {
+                              if (val >= 1 && val <= 12) setHour12(val);
+                            }
+                          }}
+                          className="w-8 text-center font-mono text-base font-extrabold text-[#070607] bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setHour12((h) => (h <= 1 ? 12 : h - 1))}
+                          className="p-1 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] rounded-full transition"
+                          title="Decrease Hour"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
 
-                      <span className="font-bold text-sm text-[#070607]">:</span>
+                      <span className="font-mono text-lg font-black text-[#fc5000]">:</span>
 
-                      {/* Minute Dropdown (00-55) */}
-                      <select
-                        value={minute12}
-                        onChange={(e) => setMinute12(e.target.value)}
-                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none min-w-[60px]"
-                      >
-                        {minutesList.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
+                      {/* Minute Display & Steppers (Full 00-59 precision) */}
+                      <div className="flex items-center gap-1 bg-[#e2e2df] rounded-full px-2 py-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMinute12((mStr) => {
+                              const m = parseInt(mStr, 10) || 0;
+                              return String((m + 1) % 60).padStart(2, '0');
+                            })
+                          }
+                          className="p-1 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] rounded-full transition"
+                          title="Increase Minute"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <input
+                          type="number"
+                          min={0}
+                          max={59}
+                          value={minute12}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val)) {
+                              const clamped = Math.max(0, Math.min(59, val));
+                              setMinute12(String(clamped).padStart(2, '0'));
+                            } else {
+                              setMinute12('00');
+                            }
+                          }}
+                          className="w-8 text-center font-mono text-base font-extrabold text-[#070607] bg-transparent border-none focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMinute12((mStr) => {
+                              const m = parseInt(mStr, 10) || 0;
+                              return String((m - 1 + 60) % 60).padStart(2, '0');
+                            })
+                          }
+                          className="p-1 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] rounded-full transition"
+                          title="Decrease Minute"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Quick ±1 Minute Steppers */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMinute12((mStr) => {
+                              const m = parseInt(mStr, 10) || 0;
+                              return String((m - 1 + 60) % 60).padStart(2, '0');
+                            })
+                          }
+                          className="rounded-full bg-[#e2e2df] px-2 py-1 text-[10px] font-bold text-[#070607] hover:bg-[#fc5000] transition"
+                        >
+                          -1m
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMinute12((mStr) => {
+                              const m = parseInt(mStr, 10) || 0;
+                              return String((m + 1) % 60).padStart(2, '0');
+                            })
+                          }
+                          className="rounded-full bg-[#e2e2df] px-2 py-1 text-[10px] font-bold text-[#070607] hover:bg-[#fc5000] transition"
+                        >
+                          +1m
+                        </button>
+                      </div>
 
                       {/* AM/PM Toggle Pills */}
-                      <div className="flex items-center bg-[#f7f6f2] p-1 rounded-full border border-[#070607]/10 flex-shrink-0 ml-auto">
+                      <div className="flex items-center bg-[#e2e2df] p-0.5 rounded-full border border-[#070607]/10 ml-auto">
                         <button
                           type="button"
                           onClick={() => setAmpm('AM')}
-                          className={`px-3 py-1 text-[11px] font-extrabold rounded-full transition ${
+                          className={`px-2.5 py-1 text-[11px] font-black rounded-full transition ${
                             ampm === 'AM'
                               ? 'bg-[#fc5000] text-[#070607]'
                               : 'text-[#070607]/60 hover:text-[#070607]'
@@ -466,7 +547,7 @@ export default function SchedulePage() {
                         <button
                           type="button"
                           onClick={() => setAmpm('PM')}
-                          className={`px-3 py-1 text-[11px] font-extrabold rounded-full transition ${
+                          className={`px-2.5 py-1 text-[11px] font-black rounded-full transition ${
                             ampm === 'PM'
                               ? 'bg-[#fc5000] text-[#070607]'
                               : 'text-[#070607]/60 hover:text-[#070607]'
