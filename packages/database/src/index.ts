@@ -92,6 +92,10 @@ export interface ScheduledMessage {
 
 let cachedDb: Firestore | null = null;
 
+export function resetDb(): void {
+  cachedDb = null;
+}
+
 export function getDb(): Firestore {
   if (cachedDb) return cachedDb;
 
@@ -165,7 +169,29 @@ function toDateString(value: unknown): string {
 }
 
 function collection(name: string) {
-  return getDb().collection(name);
+  try {
+    return getDb().collection(name);
+  } catch (err: any) {
+    if (err?.message?.includes('closing') || err?.message?.includes('closed')) {
+      cachedDb = null;
+      return getDb().collection(name);
+    }
+    throw err;
+  }
+}
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes('closing') || msg.includes('closed') || msg.includes('hidden')) {
+      console.warn('⚠️ Firestore instance closing/hidden detected — re-initializing DB instance...');
+      cachedDb = null;
+      return await fn();
+    }
+    throw err;
+  }
 }
 
 const users = () => collection('users');
@@ -180,15 +206,19 @@ const scheduledCol = () => collection('scheduledMessages');
 export const db = {
   // ---------- Users ----------
   async countUsers(): Promise<number> {
-    const snap = await users().count().get();
-    return snap.data().count;
+    return withRetry(async () => {
+      const snap = await users().count().get();
+      return snap.data().count;
+    });
   },
 
   async getAllUsers(): Promise<User[]> {
-    const snap = await users().get();
-    return snap.docs.map((doc) => {
-      const data = doc.data() as Omit<User, 'id'>;
-      return { ...data, id: doc.id, username: data.username ?? doc.id };
+    return withRetry(async () => {
+      const snap = await users().get();
+      return snap.docs.map((doc) => {
+        const data = doc.data() as Omit<User, 'id'>;
+        return { ...data, id: doc.id, username: data.username ?? doc.id };
+      });
     });
   },
 
@@ -198,82 +228,88 @@ export const db = {
     role: string;
     googleUid?: string | null;
   }): Promise<User> {
-    const now = nowIso();
-    const user: User = {
-      id: data.username,
-      username: data.username,
-      passwordHash: data.passwordHash,
-      totpSecret: null,
-      totpEnabled: false,
-      googleUid: data.googleUid ?? null,
-      role: data.role,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await users().doc(data.username).set(user);
-    return user;
+    return withRetry(async () => {
+      const now = nowIso();
+      const user: User = {
+        id: data.username,
+        username: data.username,
+        passwordHash: data.passwordHash,
+        totpSecret: null,
+        totpEnabled: false,
+        googleUid: data.googleUid ?? null,
+        role: data.role,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await users().doc(data.username).set(user);
+      return user;
+    });
   },
 
   async findUserByUsername(username: string): Promise<User | null> {
-    const doc = await users().doc(username).get();
-    if (doc.exists) {
-      const data = doc.data() as Omit<User, 'id'>;
-      return {
-        ...data,
-        id: doc.id,
-        username: data.username ?? username,
-        googleUid: data.googleUid ?? null,
-      };
-    }
+    return withRetry(async () => {
+      const doc = await users().doc(username).get();
+      if (doc.exists) {
+        const data = doc.data() as Omit<User, 'id'>;
+        return {
+          ...data,
+          id: doc.id,
+          username: data.username ?? username,
+          googleUid: data.googleUid ?? null,
+        };
+      }
 
-    const snap = await users().where('email', '==', username).limit(1).get();
-    if (!snap.empty) {
-      const d = snap.docs[0];
-      const data = d.data();
-      return {
-        id: d.id,
-        username: data.username ?? data.email ?? username,
-        passwordHash: data.passwordHash ?? '',
-        totpSecret: data.totpSecret ?? null,
-        totpEnabled: !!data.totpEnabled,
-        googleUid: data.googleUid ?? d.id,
-        role: data.role ?? 'OWNER',
-        createdAt: toDateString(data.createdAt),
-        updatedAt: toDateString(data.updatedAt),
-      };
-    }
-    return null;
+      const snap = await users().where('email', '==', username).limit(1).get();
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const data = d.data();
+        return {
+          id: d.id,
+          username: data.username ?? data.email ?? username,
+          passwordHash: data.passwordHash ?? '',
+          totpSecret: data.totpSecret ?? null,
+          totpEnabled: !!data.totpEnabled,
+          googleUid: data.googleUid ?? d.id,
+          role: data.role ?? 'OWNER',
+          createdAt: toDateString(data.createdAt),
+          updatedAt: toDateString(data.updatedAt),
+        };
+      }
+      return null;
+    });
   },
 
   async findUserById(id: string): Promise<User | null> {
-    const doc = await users().doc(id).get();
-    if (doc.exists) {
-      const data = doc.data() as Omit<User, 'id'>;
-      return {
-        ...data,
-        id: doc.id,
-        username: data.username ?? id,
-        googleUid: data.googleUid ?? null,
-      };
-    }
+    return withRetry(async () => {
+      const doc = await users().doc(id).get();
+      if (doc.exists) {
+        const data = doc.data() as Omit<User, 'id'>;
+        return {
+          ...data,
+          id: doc.id,
+          username: data.username ?? id,
+          googleUid: data.googleUid ?? null,
+        };
+      }
 
-    const snap = await users().where('id', '==', id).limit(1).get();
-    if (!snap.empty) {
-      const d = snap.docs[0];
-      const data = d.data();
-      return {
-        id: d.id,
-        username: data.username ?? data.email ?? id,
-        passwordHash: data.passwordHash ?? '',
-        totpSecret: data.totpSecret ?? null,
-        totpEnabled: !!data.totpEnabled,
-        googleUid: data.googleUid ?? d.id,
-        role: data.role ?? 'OWNER',
-        createdAt: toDateString(data.createdAt),
-        updatedAt: toDateString(data.updatedAt),
-      };
-    }
-    return null;
+      const snap = await users().where('id', '==', id).limit(1).get();
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        const data = d.data();
+        return {
+          id: d.id,
+          username: data.username ?? data.email ?? id,
+          passwordHash: data.passwordHash ?? '',
+          totpSecret: data.totpSecret ?? null,
+          totpEnabled: !!data.totpEnabled,
+          googleUid: data.googleUid ?? d.id,
+          role: data.role ?? 'OWNER',
+          createdAt: toDateString(data.createdAt),
+          updatedAt: toDateString(data.updatedAt),
+        };
+      }
+      return null;
+    });
   },
 
   async setUserGoogleUid(username: string, googleUid: string): Promise<void> {
