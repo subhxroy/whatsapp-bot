@@ -6,14 +6,14 @@ This document serves as the comprehensive technical specification, architecture 
 
 ## 1. High-Level Architecture & System Design
 
-The application is a production, single-user (with paid-user onboarding) private monorepo powered by **pnpm workspaces** and **Turborepo**. It cleanly isolates WhatsApp protocol logic (`packages/whatsapp`) from API endpoints, database interactions, command execution, monetization, scheduling, and the Next.js control dashboard. It ships three front-end surfaces plus two cloud deployment targets:
+The application is a production, multi-user private monorepo powered by **pnpm workspaces** and **Turborepo**. WhatsApp protocol logic (`packages/whatsapp`) is cleanly isolated from API endpoints, database interactions, command execution, monetization, scheduling, and the Next.js control dashboard. Each dashboard user gets their **own per-user `WhatsAppClient` session** (managed by `SessionManager`), gated behind a ₹150 one-time UPI activation payment. It ships three front-end surfaces plus two cloud deployment targets:
 
 | Surface | Technology | Hosted At | Purpose |
 | :--- | :--- | :--- | :--- |
 | **Landing page** (`landing/`) | Static HTML/CSS/JS | Netlify → `caldera-bot.netlify.app` | Marketing, features, pricing (₹150 lifetime), creator profile. Also served by the API at `/landing/` when the folder is present. |
 | **Web dashboard** (`apps/web`) | Next.js 15 App Router | Netlify → `dashboard-caldera-bot.netlify.app` (can also run on Render / localhost:3000) | Authenticated control center: WhatsApp connection, commands, auto-replies, AI, media, logs, security, settings, admin portal. |
 | **Standalone admin portal** (`admin/`) | Static HTML/CSS/JS + Firebase compat SDK | Netlify → `admin-caldera-bot.netlify.app` | Master admin approvals for the ₹150 UPI activation monetization flow. Realtime Firestore listener. |
-| **API + Bot runtime** (`apps/api`) | Fastify REST + WebSocket | Render → `https://caldera-bot-api.onrender.com` (or localhost:4000) | Backend API, Baileys WhatsApp socket, BullMQ audit worker, background scheduler, payment verification. |
+| **API + Bot runtime** (`apps/api`) | Fastify REST + WebSocket | Render → `https://caldera-bot-api.onrender.com` (or localhost:4000) | Backend API, multi-tenant Baileys WhatsApp sessions (`SessionManager`), background scheduler, direct Firestore audit logging, payment verification. |
 
 ```mermaid
 flowchart TD
@@ -50,8 +50,8 @@ flowchart TD
 
         subgraph apps/api
             Fastify[Fastify REST API & WS Gateway]
-            Worker[BullMQ Audit Worker] <--> Redis[(Redis 7)]
-            Sched[Scheduler: Birthday + Scheduled Messages]
+            SM[SessionManager: per-user WhatsAppClient sessions]
+            Sched[Scheduler: Birthday + Scheduled Messages 5s poll]
             Mail[email.ts nodemailer SMTP]
         end
 
@@ -69,7 +69,8 @@ flowchart TD
     Plugins --> MediaPkg[packages/media FFmpeg]
     Plugins --> AIPkg[packages/ai Gemini/OpenAI/Ollama]
     Plugins --> DB
-    Sched --> WAC
+    SM -->|per-user instances| WAC
+    Sched --> SM
     Sched --> DB
 
     Next <-->|HTTP / REST| Fastify
@@ -79,7 +80,6 @@ flowchart TD
     L --> N
     L --> A
     Fastify --> DB
-    Worker --> DB
     Mail -->|SMTP| AdminEmail
     AdminEmail[contact.subhroy@gmail.com / aarsxlan@gmail.com]
 ```
@@ -90,7 +90,7 @@ flowchart TD
 3. **Mandatory Privacy Defaults**: `MESSAGE_LOGGING=false` and `AI_ENABLED=false` are default settings. No message content is written to disk or logs unless explicitly enabled.
 4. **View-Once Media Handling**: View-once media is respected by default — `sticker` and `toimg` reject it. A dedicated `.vv` / `.avv` command allows revealing view-once media: it looks up the **originally received message** from the client's recent-message cache, downloads it, and re-sends it as normal saveable media.
 5. **Monetization Gate**: WhatsApp connection (QR + pairing) is gated behind a **₹150 one-time UPI activation payment** + admin approval. Payment requests are stored in Firestore (`payments`), verified by an admin (dashboard Admin Portal or the standalone `admin/` portal), and exempted emails bypass the gate.
-6. **Scheduled Delivery Engine**: `.birthday` / `.schedule` queue messages in Firestore (`scheduledMessages`); a background scheduler in `apps/api` delivers them at the exact scheduled minute and notifies the sender in their self-chat.
+6. **Scheduled Delivery Engine**: `.birthday` / `.schedule` (and the dashboard Schedule page → `POST /api/scheduled-messages`) queue messages in Firestore (`scheduledMessages`); a background scheduler in `apps/api` polls every **5 seconds** and delivers them at the scheduled minute through the sender's connected session, notifying the sender in their self-chat.
 7. **Zero Telemetry**: No third-party analytics, remote tracking, or cloud bot host dependencies beyond Firebase/Render/Netlify infra.
 8. **Deployment Split**: Dashboard + static sites are hosted on Netlify; the API/bot runtime is hosted on Render; `docker-compose.yml` remains available for fully self-hosted deployments.
 
@@ -146,7 +146,7 @@ flowchart TD
   - `JWT_SECRET`: Secret key for dashboard JWT tokens.
   - `FIREBASE_SERVICE_ACCOUNT_PATH`: Path to the Firebase service account JSON key. Alternatives: inline `FIREBASE_SERVICE_ACCOUNT` JSON or `GOOGLE_APPLICATION_CREDENTIALS`. Local emulator only: `FIREBASE_PROJECT_ID` + `FIRESTORE_EMULATOR_HOST`.
   - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`: Firebase **web SDK** config inlined into the dashboard at build time for Google sign-in. MUST be the same project as the service account. Next.js reads these from `apps/web/.env.local`.
-  - `REDIS_URL`: Redis connection string (`redis://localhost:6379`).
+  - `REDIS_URL`: Redis connection string (`redis://localhost:6379`). **Legacy** — the runtime no longer uses Redis/BullMQ (audit logging writes straight to Firestore), so this is not required.
   - Privacy flags: `MESSAGE_LOGGING=false`, `AI_ENABLED=false`, `MEDIA_RETENTION=temporary`, `ANALYTICS=false`, `THIRD_PARTY_TRACKING=false`.
   - `BOT_OWNER_NUMBER`: Phone number of bot owner (digits only or JID).
   - AI keys: `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OLLAMA_BASE_URL`.
@@ -175,11 +175,11 @@ flowchart TD
 #### 9. [docker-compose.yml](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/docker-compose.yml)
 - **Purpose**: Multi-container self-hosted production deployment orchestration.
 - **Services Defined**:
-  - `redis`: Redis 7 Alpine container for BullMQ queues & rate limiters with healthcheck (`redis-cli ping`).
+  - `redis`: Redis 7 Alpine container (legacy — see note below), with healthcheck (`redis-cli ping`).
   - `api`: Fastify API server container built from `docker/Dockerfile.api`; mounts `./firebase-service-account.json` read-only at `/app/firebase-service-account.json`; env-driven keys (`SESSION_ENCRYPTION_KEY`, `JWT_SECRET`, `BOT_OWNER_NUMBER`, privacy flags).
   - `web`: Next.js web dashboard container built from `docker/Dockerfile.web`; `API_URL=http://api:4000`.
   - `caddy`: Caddy 2 reverse proxy handling TLS and traffic routing (ports 80/443).
-- **Note**: The database is **Cloud Firestore** (managed by Firebase, no local container). `redis` is used by BullMQ (`apps/api/src/queue.ts`) for audit-log queuing and is optional — the app degrades to direct Firestore writes.
+- **Note**: The database is **Cloud Firestore** (managed by Firebase, no local container). The `redis` service is a leftover from the pre-Firestore BullMQ era — the current runtime (`apps/api/src/queue.ts`) writes audit logs **directly to Firestore** and never connects to Redis, so `redis` can be removed from the compose stack without affecting the app.
 
 #### 10. [netlify.toml](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/netlify.toml)
 - **Purpose**: Netlify deployment config for the Next.js dashboard.
@@ -241,12 +241,13 @@ flowchart TD
   - `payments` (auto doc id): `userId`, `userEmail`, `utrNumber`, `amount`, `status` (`PENDING`/`APPROVED`/`REJECTED`), `createdAt`, `updatedAt`.
   - `scheduledMessages` (auto doc id): `targetNumber`, `targetJid`, `message`, `scheduledAt`, `senderJid`, `type` (`BIRTHDAY`/`SCHEDULED`), `status` (`PENDING`/`SENT`/`FAILED`), `createdAt`.
 - **Notable helpers**:
-  - Users: `countUsers`, `createUser`, `findUserByUsername`, `findUserById`, `setUserGoogleUid`. `findUserByUsername`/`findUserById` fall back to a `where('email'|'id', ...)` lookup so email-identified Google users resolve.
+  - Users: `countUsers`, `getAllUsers`, `createUser`, `findUserByUsername`, `findUserById`, `setUserGoogleUid`. `findUserByUsername`/`findUserById` fall back to a `where('email'|'id', ...)` lookup so email-identified Google users resolve.
   - Sessions: `getSession`/`upsertSession`/`deleteSession`.
   - Settings/commands/auto-replies/audit logs: unchanged set of CRUD helpers. `getAuditLogs` uses `orderBy('createdAt','desc').offset().limit()`.
   - Payments: `createPaymentRequest`, `getPaymentRequests` (newest first), `getUserPaymentStatus(userIdOrEmail)` — returns `{ isApproved, status, request? }` and **exempts** the hard-coded list `['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio']`; `updatePaymentStatus(id, 'APPROVED'|'REJECTED')`.
-  - Scheduled: `createScheduledMessage`, `getPendingScheduledMessages` (`status == 'PENDING'`), `markScheduledMessageSent`.
+  - Scheduled: `createScheduledMessage`, `getPendingScheduledMessages` (`status == 'PENDING'`), `getScheduledMessages` (all, newest `scheduledAt` first), `deleteScheduledMessage`, `markScheduledMessageSent`.
   - Health: `ping()`.
+- **Resilience**: every helper runs through `withRetry()`, which detects Firestore connection-closed errors (a `CLOSED_ERROR_PATTERNS` substring list) and transparently `resetDb()`s the admin app + Firestore instance before retrying once.
 - **Design notes**: No composite indexes required for core reads. Credential resolution order in `getDb()`: `FIREBASE_SERVICE_ACCOUNT` (inline JSON) → files found at `FIREBASE_SERVICE_ACCOUNT_PATH` / `GOOGLE_APPLICATION_CREDENTIALS` → bundled candidates `openify-studio-firebase-adminsdk-fbsvc-8938483736.json` (repo-root) and `firebase-service-account.json` (searched relative to cwd, repo root, and `__dirname` `../../../`) → `FIREBASE_PROJECT_ID` (emulator only). Honors `FIRESTORE_EMULATOR_HOST`.
 
 #### 18. [packages/database/package.json](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/database/package.json)
@@ -350,23 +351,26 @@ flowchart TD
     - Upserts encrypted strings into the `sessions` Firestore collection via `db.upsertSession` (doc id `${sessionKey}_${key}`).
     - Decrypts via `decryptData()` and parses using `BufferJSON.reviver`.
   - `clearFirebaseAuthState(sessionKey = 'default_session')`: Batch-deletes all session docs matching the session key prefix (used on logout / logged-out disconnect).
+  - **⚠️ Note**: `WhatsAppClient.disconnect()` calls `clearFirebaseAuthState()` **without passing the session key**, so it clears `default_session_*` docs rather than the client's own `user_${userId}_*` docs — per-user sessions are not fully wiped on disconnect.
 
 #### 35. [packages/whatsapp/src/client.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/whatsapp/src/client.ts)
 - **Purpose**: Master WhatsApp client interface encapsulating Baileys lifecycle.
 - **Class**: `WhatsAppClient`
-- **Methods & Responsibilities**:
-  - `connect()`: Loads auth state via `useFirebaseAuthState()`, initializes Baileys socket (`makeWASocket` with `syncFullHistory: false`, `generateHighQualityLinkPreview: true`), binds `creds.update` and `connection.update` handlers.
-  - Reconnect Logic: Exponential backoff (`1000 * 2^attempts`, max 30s) on unexpected disconnects. `DisconnectReason.loggedOut` clears the Firestore auth store and reconnects.
-  - `requestPairingCode(phoneNumber)`: Triggers Baileys pairing code flow for 8-digit phone number pairing.
-  - `disconnect()`: Sets explicit-disconnect flag, unbinds listeners, closes socket, clears Firestore auth state.
-  - `sendMessage(chatId, content)` & `sendMedia(chatId, media, type, options)`: Dispatch text and media (`image`/`video`/`audio`/`sticker`) messages.
-  - `downloadMedia(msg)` / `downloadMediaFromContent(content)`: Download media via Baileys `downloadMediaMessage` — the content-based variant powers `.vv` unwrapping of quoted view-once media.
-  - `getCachedMessage(id)` / `cacheMessage(id, msg)`: In-memory recent-message cache (bounded to 300 entries) backing `.vv`.
-  - `normalizeMessage(msg)`: Normalizes raw messages; unwraps view-once wrappers (`viewOnceMessage`, `viewOnceMessageV2`, `viewOnceMessageV2Extension`).
+- **Actual method surface** (verified against source — the doc previously listed methods that do NOT exist, e.g. `sendPoll`, `sendImageAsSticker`, `sendVideoAsGif`, `downloadQuotedMedia`, `getCachedQuotedMessage`, `reconnect`):
+  - `getStatus()` / `getQRCode()`: current `ConnectionStatus` and cached QR string.
+  - `onMessage(handler)` / `onStatusChange(handler)`: subscribe handlers (returns unsubscribe).
+  - `connect()`: loads auth state via `useFirebaseAuthState(this.sessionKey)`, initializes Baileys socket (`makeWASocket` with `syncFullHistory: false`, `generateHighQualityLinkPreview: true`), binds `creds.update` (`saveCreds`) and `connection.update` handlers.
+  - Reconnect Logic: Exponential backoff (`1000 * 2^attempts`, max 30s) on unexpected disconnects. `DisconnectReason.loggedOut` clears the Firestore auth store and reconnects after 500ms.
+  - `requestPairingCode(phoneNumber)`: triggers Baileys pairing code flow (auto-connects first if no socket).
+  - `disconnect()`: sets explicit-disconnect flag, unbinds listeners, closes socket, clears Firestore auth state.
+  - `sendMessage(chatId, content)` & `sendMedia(chatId, media, type, options)`: dispatch text and media (`image`/`video`/`audio`/`sticker`) messages; both throw when not `CONNECTED`.
+  - `downloadMedia(msg)` / `downloadMediaFromContent(content)`: download via Baileys `downloadMediaMessage` — the content-based variant powers `.vv` unwrapping of quoted view-once media.
+  - `getCachedMessage(id)` / `cacheMessage(id, msg)`: in-memory recent-message cache (bounded by `MAX_CACHED_MESSAGES = 300`) backing `.vv`.
+  - `normalizeMessage(msg)` / `unwrapMessageContent(msg)`: (private) unwraps view-once/ephemeral/edited wrappers recursively and builds `NormalizedMessage`. Resolves WhatsApp privacy **LID JIDs** back to `@s.whatsapp.net` phone JIDs using `participantAlt`/`remoteJidAlt`.
   - **Message dedup**: `processedMsgIds` Set (capped at 1000) prevents double-processing on multi-device sync.
-  - **History skip**: Ignores messages older than 2 minutes at ingest to keep responses instant.
-  - **Echo-Loop Guard**: Downstream handlers (dispatcher/auto-reply) ignore `fromMe` messages.
+  - **History skip**: only `type === 'append'` messages older than 300 seconds (5 min) are dropped; live `notify` messages are always processed.
   - **Logging Guard**: Pino logger redacts `message.body`, `creds`, `keys`, `qr`, `pairingCode`; log lines omit body when `MESSAGE_LOGGING=false`.
+- **⚠️ `quotedMessage` is declared on `NormalizedMessage` but never populated** by `normalizeMessage()` (see types.ts note) — plugins relying on `ctx.message.quoted` (`.toaudio`, `.togif`) are broken.
 
 #### 36. [packages/whatsapp/src/index.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/whatsapp/src/index.ts)
 - **Purpose**: Barrel export re-exporting `WhatsAppClient`, types, and auth-store helpers.
@@ -433,14 +437,14 @@ flowchart TD
 #### 48. [packages/commands/src/types.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/types.ts)
 - **Purpose**: Command execution context and plugin interfaces.
 - **Interfaces**:
-  - `CommandContext`: `client`, `message`, `args`, `prefix`, `callerRole`, `reply()`, `replyMedia()`.
+  - `CommandContext`: `client`, `message`, `msg?`, `args`, `prefix`, `callerRole`, `reply()`, `replyMedia()`.
   - `CommandPlugin`: `name`, `aliases`, `description`, `category` (`'general'|'utility'|'media'|'ai'|'admin'`), `ownerOnly`, `enabled`, `cooldown`, `execute()`.
-  - **Note**: `category` does NOT include `'group'` — `.admins` uses `'group'` and fails type-check (see Known Issues).
+  - **Note**: `category` does NOT include `'group'` or `'fun'` — `admins.ts`/`group.ts` use `'group'` and `fun.ts` uses `'fun'`, all of which fail type-check (see Known Issues). `CommandContext` also lacks `getGroupMetadata`, `replyWithPoll`, `downloadQuotedMedia`, `replyWithAudio`, `replyWithVideo`. The newer plugins (`fun.ts`, `utility.ts`, `system.ts`) bypass the type system by destructuring `execute: async ({ client, msg, message = msg, args }: any)`.
 
 #### 49. [packages/commands/src/registry.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/registry.ts)
 - **Purpose**: Plugin registry holding active command plugins.
 - **Class**: `CommandRegistry` registers default commands, manages command-to-alias maps, and resolves commands via `getCommand(nameOrAlias)`.
-- **Registered defaults** (25 plugins): `ping`, `menu`, `help`, `about`, `owner`, `settings`, `sticker`, `toimg`, `ai`, `group`, `promote`, `demote`, `kick`, `tagall`, `antilink`, `ytmp3`, `ytmp4`, `vv`, `birthday`, `id`, `calc`, `poll`, `toaudio`, `togif`, `admins`.
+- **Registered defaults** (43 plugins): `ping`, `menu`, `help`, `about`, `owner`, `settings`, `sticker`, `toimg`, `ai`, `group`, `promote`, `demote`, `kick`, `tagall`, `hidetag`, `groupinfo`, `link`, `antilink`, `ytmp3`, `ytmp4`, `vv`, `birthday`, `id`, `calc`, `poll`, `toaudio`, `togif`, `admins`, `translate`, `weather`, `dict`, `shorten`, `qrcode`, `roll`, `flip`, `quote`, `joke`, `trivia`, `fact`, `8ball`, `system`, `eval`, `restart`.
 
 #### 50. [packages/commands/src/auto-reply.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/auto-reply.ts)
 - **Purpose**: Automated rule evaluation engine.
@@ -473,7 +477,7 @@ flowchart TD
 - [sticker.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/sticker.ts): `.sticker` — image/video → WhatsApp sticker. Rejects view-once media.
 - [toimg.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/toimg.ts): `.toimg` — quoted sticker → PNG image.
 - [ai.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/ai.ts): `.ai` — invokes AI assistant if enabled.
-- [group.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/group.ts): `.group`, `.promote`, `.demote`, `.kick`, `.tagall` (group admin controls).
+- [group.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/group.ts): `.group` / `.promote` / `.demote` / `.kick` / `.tagall` / `.hidetag` / `.groupinfo` / `.link` (group admin controls; most are decorative — they reply with canned confirmation text rather than mutating group state). `groupinfo` (`.groupinfo`/`.gcinfo`/`.groupdetails`) and `link` (`.link`/`.gclink`/`.grouplink`) use `category: 'group'` → type errors.
 - [antilink.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/antilink.ts): `.antilink` — toggle group link suppression.
 - [downloader.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/downloader.ts): `.ytmp3` / `.ytmp4` media downloader engines.
 - [vv.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/vv.ts): `.vv` / `.avv` — reveals view-once media from the client's recent-message cache (falling back to unwrapping `contextInfo.quotedMessage`), downloads via `downloadMedia`/`downloadMediaFromContent`, re-sends as normal media.
@@ -484,6 +488,9 @@ flowchart TD
 - [toaudio.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/toaudio.ts): `.toaudio` / `.tomp3` / `.mp3` — converts quoted video/voice to MP3. **⚠️ BROKEN**: imports non-existent `extractAudioFromVideo` from `@private-md-bot/media`, uses non-existent `ctx.message.quoted`, `ctx.downloadQuotedMedia`, `ctx.replyWithAudio`.
 - [togif.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/togif.ts): `.togif` / `.gif` — converts quoted video/animated sticker to GIF playback. **⚠️ BROKEN**: uses non-existent `ctx.message.quoted`, `ctx.downloadQuotedMedia`, `ctx.replyWithVideo`.
 - [admins.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/admins.ts): `.admins` / `.adminlist` / `.groupadmins` — lists group administrators. **⚠️ BROKEN**: `category: 'group'` is not in the `category` union and `ctx.getGroupMetadata` does not exist on `CommandContext`.
+- [utility.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/utility.ts): `.translate`/`.tr`/`.trans` (Google translate free endpoint), `.weather`/`.w`/`.climate` (wttr.in), `.dict`/`.dictionary`/`.meaning`/`.define` (dictionaryapi.dev), `.shorten`/`.short`/`.shorturl` (tinyurl API), `.qrcode`/`.qr` (api.qrserver.com image link). Category `utility`, cooldown 3s, public.
+- [fun.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/fun.ts): `.roll`/`.dice` (custom `dN` dice), `.flip`/`.coin`/`.coinflip`, `.quote`/`.motivate`, `.joke`/`.pun`, `.trivia`/`.quiz`, `.fact`/`.funfact`, `.8ball`/`.eightball`. **⚠️ All use `category: 'fun'`** which is not in the `category` union (7 type errors). Runtime-safe because they destructure `ctx` as `any`.
+- [system.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/system.ts): `.system`/`.sys`/`.sysinfo`/`.server` (OS/memory/CPU/uptime report), `.eval`/`.e`/`.js` (**Owner-only**, runs `eval` in an async IIFE), `.restart`/`.reboot` (**Owner-only**, calls `client.reconnect()`). **⚠️ `client.reconnect()` does not exist on `WhatsAppClient`** — no type error because `ctx` is destructured as `any`, but it will throw at runtime.
 
 #### 53. [packages/commands/src/index.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/index.ts)
 - **Purpose**: Barrel export re-exporting types, registry, dispatcher, and auto-reply modules.
@@ -503,27 +510,40 @@ flowchart TD
 - **Purpose**: Fastify application factory function (`buildServer()`).
 - **Function**:
   - Logger with redaction of `authorization` / `cookie` headers.
-  - Registers CORS (`origin: [env.WEB_URL, 'http://localhost:3000']`, credentials), global rate-limit (100 req/min with 429 message), Cookie, JWT (secret from env, cookie name `token`, unsigned), WebSocket.
+  - Registers CORS (`origin: [env.WEB_URL, 'http://localhost:3000']`, credentials), global rate-limit (**`max: 100` per minute** with a custom 429 JSON), Cookie, JWT (secret from env, cookie name `token`, unsigned), WebSocket.
   - Registers `@fastify/static` to serve the `landing/` directory at prefix `/landing/` when present (searched at cwd, `../../landing`, and `__dirname`-relative paths).
   - Defines `fastify.authenticate` JWT decorator and a global error handler that never leaks stack traces/secrets.
-  - Instantiates `WhatsAppClient` and `CommandDispatcher`, wires `waClient.onMessage(dispatcher.handleMessage)`.
-  - Starts `startMessageScheduler(waClient)` (birthday + scheduled message delivery).
-  - Registers all routes: health, auth, whatsapp, commands, autoreply, settings, logs, payment, and the WebSocket gateway.
-  - Returns `{ fastify, waClient }`.
+  - Instantiates `SessionManager`, starts `startMessageScheduler(sessionManager)` (birthday + scheduled message delivery).
+  - Registers all routes: health, auth, whatsapp, commands, autoreply, settings, logs, payment, **scheduled-messages**, and the WebSocket gateway.
+  - Returns **`{ fastify, sessionManager }`** (not a single `waClient`).
+
+#### 56b. [apps/api/src/session-manager.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/session-manager.ts)
+- **Purpose**: Multi-tenant WhatsApp session lifecycle manager — one `WhatsAppClient` per dashboard user, replacing the old single `waClient` design.
+- **Class**: `SessionManager`
+- **Internals**: `Map<string, WhatsAppClient>` keyed by `userId`; a client is created with session key `user_${userId}` and gets its own `CommandDispatcher` wired via `client.onMessage(...)`.
+- **Methods**:
+  - `getOrCreate(userId)`: lazily builds a client + dispatcher pair.
+  - `get(userId)` / `remove(userId)`: map lookups.
+  - `connect(userId)` / `disconnect(userId)`: connect / disconnect-and-remove a session (`disconnect` deletes it from the map).
+  - `getStatus(userId)`: `{ status, qrCode }` (returns `DISCONNECTED`/`null` for unknown users).
+  - `isConnected(userId)` / `getConnectedCount()`: connected-state checks.
+  - `getClientForMessage(senderJid)`: returns the **first connected** session — fallback used by the scheduler to deliver scheduled messages when the sender's own session is absent.
+  - `connectAllApproved()`: iterates `db.getAllUsers()`; skips users who are neither exempt-email, `OWNER`, nor `ADMIN` unless `getUserPaymentStatus()` says approved; connects every eligible user's session at boot. Exempt list: `['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio']`. Called from `index.ts` on startup.
 
 #### 57. [apps/api/src/websocket.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/websocket.ts)
 - **Purpose**: Real-time authenticated WebSocket gateway.
-- **Function**: `registerWebSocketGateway()` handles `/ws` endpoint connections. Authenticates JWT token from query string or cookie, tracks connected clients, and broadcasts `waClient.onStatusChange()` status & QR updates. Uses the `@fastify/websocket` v11 handler signature (raw `ws` first argument).
+- **Function**: `registerWebSocketGateway(fastify, sessionManager)` handles `/ws` connections. Authenticates JWT from the `token` query param or `token` cookie, groups sockets per `userId`, and broadcasts the **per-user** session's `STATUS_UPDATE` events (`client.onStatusChange`) with status + QR. Sends the current status immediately on connect, closes with code 4001 when unauthenticated.
 
 #### 58. [apps/api/src/queue.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/queue.ts)
-- **Purpose**: Redis & BullMQ audit log worker.
-- **Function**: Instantiates BullMQ `auditQueue` and a background `Worker` when Redis is reachable (ioredis configured with `maxRetriesPerRequest: 1`, `enableOfflineQueue: false`, `connectTimeout: 2000`, non-reconnecting `retryStrategy`). `logAudit()` enqueues audit events (`action`, `actor`, `details`, `ipAddress`) to be persisted into Firestore via `db.createAuditLog`. **Resilience**: if Redis is offline or enqueue fails, it falls back to writing the audit log directly to Firestore.
+- **Purpose**: Audit log helper — **no Redis/BullMQ anymore**.
+- **Function**: Exports `logAudit(action, actor, details?, ipAddress?)`, which writes the audit entry directly to Firestore via `db.createAuditLog(...)` with a try/catch fallback (errors are logged, never thrown). `bullmq` / `ioredis` remain in `apps/api/package.json` but are **unused by runtime code**.
 
 #### 59. [apps/api/src/scheduler.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/scheduler.ts)
 - **Purpose**: Background message & birthday delivery engine.
-- **Function**: `startMessageScheduler(waClient)` polls every **15 seconds**:
-  - Skips if the WhatsApp client is not `CONNECTED`.
-  - Fetches `PENDING` `scheduledMessages` from Firestore; for each record whose `scheduledAt <= now`, sends `message` to `targetJid`, marks it `SENT`, and notifies the original sender in their self-chat with a delivery receipt (type-aware copy: "Birthday Wish" vs "Scheduled Message").
+- **Function**: `startMessageScheduler(sessionManager)` polls every **5 seconds**:
+  - Fetches `PENDING` `scheduledMessages` from Firestore; for each record whose `scheduledAt <= now`, resolves the sender's session (`sessionManager.get(senderEmail)` falling back to `getClientForMessage`), skips when no connected session.
+  - Sends `message` to `targetJid` via `client.sendMessage`, marks the record `SENT`.
+  - Sends a delivery receipt to `item.senderJid` in the sender's self-chat **only when `senderJid` includes `@s.whatsapp.net`** ("Delivered Birthday Wish!" / "Delivered Scheduled Message!" with recipient + message).
 
 #### 60. [apps/api/src/services/email.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/services/email.ts)
 - **Purpose**: Payment submission email notification.
@@ -532,18 +552,22 @@ flowchart TD
   - If `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS` are set, sends an HTML email via **nodemailer** titled `💳 New Bot Activation Payment (₹X) from <user>` with a link to `<WEB_URL>/dashboard/security` for approval.
 
 #### 61. API Route Handlers (`apps/api/src/routes/`)
-- [health.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/health.ts): `/api/health` and `/api/ready` — verifies DB query and WhatsApp status without exposing internal keys.
-- [auth.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/auth.ts): `/api/auth/status`, `/api/auth/setup` (initial admin, role OWNER), `/api/auth/login` (scrypt + HTTP-only cookie), `/api/auth/google` (verifies Firebase ID token via `getAuth().verifyIdToken`, links by email; first user auto-created as OWNER, new Google users auto-created as USER (self-registration via Google sign-in; bot access gated by payment status)), `/api/auth/logout`, `/api/auth/me`.
-- [whatsapp.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/whatsapp.ts): `/api/whatsapp/status` (status + QR), `/api/whatsapp/connect`, `/api/whatsapp/disconnect`, `/api/whatsapp/pair-code`. All audit-logged.
+- [health.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/health.ts): `/health` and `/api/health` (status + uptime), `/api/ready` — pings Firestore (`db.ping()`), returns `{ ready, services: { database, activeSessions } }` where `activeSessions` comes from `sessionManager.getConnectedCount()`; returns 503 when the DB is down.
+- [auth.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/auth.ts): `/api/auth/status`, `/api/auth/setup` (initial admin, role OWNER), `/api/auth/login` (scrypt + HTTP-only cookie), `/api/auth/google` (verifies Firebase ID token via `getAuth().verifyIdToken`, links by email; first user auto-created as OWNER, new Google users auto-created as USER (self-registration via Google sign-in; bot access gated by payment status)), `/api/auth/logout`, `/api/auth/me`. All sessions issue a JWT with `expiresIn: '30d'` and set a `token` cookie with `maxAge: COOKIE_MAX_AGE` (30 days, `httpOnly`, `secure` in production, `sameSite: 'lax'`).
+- [whatsapp.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/whatsapp.ts): `/api/whatsapp/status` (status + QR), `/api/whatsapp/connect`, `/api/whatsapp/disconnect`, `/api/whatsapp/pair-code`. All delegate to the per-user session: `sessionManager.getStatus/connect/disconnect(userId)` and `sessionManager.getOrCreate(userId).requestPairingCode(...)`. All audit-logged.
 - [commands.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/commands.ts): `/api/commands` (GET merged commands, PUT update command configuration).
 - [autoreply.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/autoreply.ts): `/api/auto-replies` CRUD.
 - [settings.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/settings.ts): `/api/settings` (GET privacy flags & settings, PUT update).
 - [logs.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/logs.ts): `/api/logs` paginated audit history.
 - [payment.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/payment.ts): Monetization endpoints:
   - `GET /api/payment/status` (auth): returns `getUserPaymentStatus(userIdentifier)` — `{ isApproved, status, request? }`.
-  - `POST /api/payment/submit` (auth): validates UTR (min 4 chars), creates `payments` record (`amount` defaults to 100 unless supplied; the dashboard submits ₹150), sends the admin notification email, writes a `PAYMENT_SUBMITTED` audit log.
+  - `POST /api/payment/submit` (auth): validates UTR (min 4 chars), creates `payments` record (**`amount` defaults to `100`** unless supplied; the dashboard submits ₹150), sends the admin notification email, writes a `PAYMENT_SUBMITTED` audit log.
   - `GET /api/payment/admin/requests` (admin): all payment requests; admin check is allowlist email OR `role` `ADMIN`/`OWNER`.
-  - `POST /api/payment/admin/approve` / `POST /api/payment/admin/reject` (admin): updates status, writes `PAYMENT_APPROVED` / `PAYMENT_REJECTED` audit logs.
+  - `POST /api/payment/admin/approve` / `POST /api/payment/admin/reject` (admin): updates status, writes `PAYMENT_APPROVED` / `PAYMENT_REJECTED` audit logs. **Approval also auto-connects the approved user's WhatsApp session** via `sessionManager.connect(approvedUserId)`.
+- [scheduler.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/scheduler.ts): Scheduled-message REST API for the dashboard Schedule page:
+  - `GET /api/scheduled-messages` (auth): lists all scheduled messages (newest `scheduledAt` first).
+  - `POST /api/scheduled-messages` (auth, zod: `targetNumber`, `message`, `scheduledAt`, optional `type` `SCHEDULED|BIRTHDAY`): normalizes the phone to digits, builds `targetJid` as `${digits}@s.whatsapp.net` and `senderJid` from the auth user, creates a `scheduledMessages` record, writes a `SCHEDULED_MESSAGE_CREATE` audit log.
+  - `DELETE /api/scheduled-messages/:id` (auth): deletes/cancels a record + `SCHEDULED_MESSAGE_DELETE` audit log.
 
 #### 62. [apps/api/scripts/firebase-bootstrap.js](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/scripts/firebase-bootstrap.js)
 - **Purpose**: Firestore bootstrap + connectivity verification (run via `pnpm --filter @private-md-bot/api firebase:setup`).
@@ -551,7 +575,7 @@ flowchart TD
 
 #### 63. [apps/api/src/index.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/index.ts)
 - **Purpose**: API entry point executable script.
-- **Function**: Calls `buildServer()`, starts Fastify server listening on `0.0.0.0:PORT`, and initiates an auto-connection attempt for the WhatsApp client.
+- **Function**: Calls `buildServer()`, destructures `{ fastify, sessionManager }`, starts Fastify listening on `0.0.0.0:PORT`, then calls `sessionManager.connectAllApproved()` to auto-connect every eligible user's WhatsApp session at boot.
 
 ---
 
@@ -576,7 +600,8 @@ flowchart TD
 - [sitemap.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/sitemap.ts): Sitemap with `/login` (base URL from `NEXT_PUBLIC_APP_URL` or `dashboard-caldera-bot.netlify.app`).
 - [login/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/login/page.tsx): Auth page supporting initial admin account creation (`/api/auth/setup`), password login (`/api/auth/login`), and Google sign-in (`signInWithPopup` → ID token → `POST /api/auth/google`). Decides setup-vs-login via `/api/auth/status`.
 - [lib/firebase.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/lib/firebase.ts): Client-side Firebase lazy init from `NEXT_PUBLIC_FIREBASE_*` env vars (no top-level `initializeApp`, so SSR/prerender is safe). Exports `signInWithGoogle()` and `googleErrorToMessage()`. `firebase` web SDK is a dependency of `apps/web` only.
-- [dashboard/layout.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/layout.tsx): Responsive dashboard shell — desktop sticky sidebar plus a **mobile hamburger drawer** header (md:hidden) with sign-out. Nav: Overview, WhatsApp, Commands, Auto-Reply, AI Assistant, Media Settings, Audit Logs, Security, Settings. (No Admin link — the Admin Portal moved to `admin/` static site; see below.)
+- [dashboard/layout.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/layout.tsx): Responsive dashboard shell — desktop sticky sidebar plus a **mobile hamburger drawer** header (md:hidden) with sign-out. Nav: Overview, WhatsApp, Commands, Auto-Reply, **Schedule**, AI Assistant, Media Settings, Audit Logs, Security, Settings. **Audit Logs and Security are `adminOnly`** — they are hidden unless `GET /api/auth/me` reports an exempt email or `ADMIN`/`OWNER` role (cached in `sessionStorage` as `caldera_is_admin`). (No Admin link — the Admin Portal lives at the `dashboard/admin/page.tsx` tab and the standalone `admin/` site.)
+- [dashboard/schedule/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/schedule/page.tsx): Scheduled Messages page — lists records (3s auto-refresh) with delete, plus a "Schedule New Message" modal with a **custom 12-hour AM/PM digital time picker** (hour steppers 1-12, minute steppers with full 00-59 precision, quick ±1m buttons, AM/PM pills), quick presets (+15m/+1h/+3h/Tomorrow 9AM/6PM), a human-readable delivery preview card, and `SCHEDULED`/`BIRTHDAY` type selector. Submits ISO-8601 timestamps to `POST /api/scheduled-messages`.
 - [dashboard/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/page.tsx): Overview page — connection status, command/auto-reply counts, architecture cards.
 - [dashboard/whatsapp/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/whatsapp/page.tsx): WhatsApp connection page with **activation paywall**:
   - Non-approved users see a ₹150 UPI payment card (`upi://pay?pa=contact.subhroy@okaxis...`) with a scannable QR and a UTR submission form → `POST /api/payment/submit`.
@@ -639,15 +664,21 @@ flowchart TD
 
 ### Known Issues / Current Build Status
 
-- `pnpm type-check` currently **fails in `packages/commands`** (11 errors). The four plugin files below were added without the corresponding `CommandContext`/media-package surface, so they do **not** compile and will crash at runtime if invoked:
-  1. `admins.ts` — `category: 'group'` not in the `category` union; `ctx.getGroupMetadata` missing.
-  2. `poll.ts` — `ctx.replyWithPoll` missing.
-  3. `toaudio.ts` — `extractAudioFromVideo` not exported by `@private-md-bot/media`; `ctx.message.quoted`, `ctx.downloadQuotedMedia`, `ctx.replyWithAudio` missing.
-  4. `togif.ts` — `ctx.message.quoted`, `ctx.downloadQuotedMedia`, `ctx.replyWithVideo` missing.
-- Fix path: (a) extend `CommandContext` and the dispatcher's inline context with `replyWithPoll`, `downloadQuotedMedia`, `replyWithAudio`, `replyWithVideo`, `getGroupMetadata`; (b) populate `NormalizedMessage.quotedMessage` in `normalizeMessage()` from `contextInfo`; (c) add `'group'` to the `category` union; (d) implement + export `extractAudioFromVideo` in `packages/media`.
-- `apps/web` dashboard Admin Portal revenue KPI computes `approvedCount * 200` while the advertised activation price is ₹150 (use `BOT_PRICE`).
-- `README.md` is stale: it still references SQLite/PostgreSQL + Prisma (`pnpm db:push`) and omits the Firestore/monetization/scheduling architecture described here.
+- `pnpm type-check` currently **fails in `packages/commands`** (19 errors). The plugins below were added without the corresponding `CommandContext`/media-package surface, so they do not compile and would crash at runtime if invoked:
+  1. `admins.ts` (2 errors) — `category: 'group'` (line 7) not in the `category` union; `ctx.getGroupMetadata` (line 16) missing from `CommandContext`.
+  2. `fun.ts` (7 errors) — all seven commands use `category: 'fun'`, which is not in the `category` union.
+  3. `group.ts` (2 errors) — `groupinfo` (line 124) and `link` (line 148) use `category: 'group'`.
+  4. `poll.ts` (1 error) — `ctx.replyWithPoll` (line 31) missing.
+  5. `toaudio.ts` (4 errors) — `extractAudioFromVideo` (line 2) not exported by `@private-md-bot/media`; `ctx.message.quoted` (line 13), `ctx.downloadQuotedMedia` (line 21), `ctx.replyWithAudio` (line 27) missing.
+  6. `togif.ts` (3 errors) — `ctx.message.quoted` (line 12), `ctx.downloadQuotedMedia` (line 20), `ctx.replyWithVideo` (line 25) missing.
+- Fix path: (a) extend `CommandContext` and the dispatcher's inline context with `replyWithPoll`, `downloadQuotedMedia`, `replyWithAudio`, `replyWithVideo`, `getGroupMetadata`; (b) populate `NormalizedMessage.quotedMessage` in `normalizeMessage()` from `contextInfo`; (c) add `'group'` and `'fun'` to the `category` union; (d) implement + export `extractAudioFromVideo` in `packages/media`.
+- **Runtime-only bug (no type error)**: `.restart` (`system.ts`) calls `client.reconnect()`, which does not exist on `WhatsAppClient` — it throws "client.reconnect is not a function" at runtime. A real `reconnect()` (socket teardown + `connect()`) should be added to `packages/whatsapp`.
+- `apps/web` dashboard Admin Portal (`dashboard/admin/page.tsx`) revenue KPI computes `approvedCount * 200` while the advertised activation price is ₹150 (use `BOT_PRICE`). The standalone `admin/` portal correctly uses `approved * 150`.
+- **Pricing inconsistency in code**: `POST /api/payment/submit` defaults `amount` to **100** (comment "after paying ₹100"), while the landing page, dashboard, and `admin/` portal all use **₹150** (`BOT_PRICE`). `about.ts` mentions a ₹200 fee.
+- `README.md` is now roughly accurate but light: it still describes the architecture as single-user and mentions "BullMQ audit workers" (runtime writes directly to Firestore), and omits `SessionManager`, the Schedule page, and the newer command plugins.
+- `.github/workflows/ci.yml` still runs `pnpm db:push` (a Prisma-era step; there is no Prisma schema) — it will fail and should be removed. It also pins `pnpm/action-setup` version `11.9.0` while the repo's `packageManager` is `pnpm@9.15.4`.
 - `docker/Dockerfile.api` copies `prisma/` and runs `pnpm db:generate`, which no longer apply after the Firestore migration.
+- `docker-compose.yml` still provisions a `redis` service although the runtime no longer uses Redis/BullMQ.
 
 ---
 
@@ -725,7 +756,7 @@ sequenceDiagram
     participant WA as Baileys Socket
     participant Cmd as .birthday Plugin
     participant FS as Firestore (scheduledMessages)
-    participant Sched as scheduler.ts (15s poll)
+    participant Sched as scheduler.ts (5s poll)
     participant Target as Target Recipient
 
     User->>WA: ".birthday 919876543210 2026-08-09 00:00 | Happy Birthday!"
@@ -733,9 +764,9 @@ sequenceDiagram
     Cmd->>Cmd: parse phone / date / time / message (must be future)
     Cmd->>FS: createScheduledMessage(type: BIRTHDAY, status: PENDING)
     Cmd-->>User: Confirmation with Reference ID
-    loop every 15s
+    loop every 5s
         Sched->>FS: getPendingScheduledMessages()
-        Sched->>Sched: scheduledAt <= now and client CONNECTED?
+        Sched->>Sched: scheduledAt <= now and sender session CONNECTED?
         Sched->>WA: sendMessage(targetJid, message)
         Sched->>FS: markScheduledMessageSent(id)
         Sched->>WA: notify sender in self-chat "Delivered Birthday Wish!"
@@ -754,11 +785,12 @@ sequenceDiagram
 | **Privacy Default Logging** | `MESSAGE_LOGGING=false` env check + pino redaction (`body`, `creds`, `keys`, `qr`, `pairingCode`) | Message bodies are strictly excluded from app logs, Redis, and database. |
 | **Privacy Default AI** | `AI_ENABLED=false` hard check | Zero message content transmitted to AI engines unless explicitly toggled on. |
 | **View-Once Handling** | Message parser + recent-message cache + `.vv`/`.avv` command (`getCachedMessage` / `downloadMediaFromContent`) | View-once respected by default (`sticker`/`toimg` reject it); `.vv` intentionally reveals a quoted view-once message by re-sending the originally received copy. |
-| **Monetization Access Gate** | `getUserPaymentStatus()` + exempt-email allowlist + admin approval on `payments` | WhatsApp connect/pairing is blocked until a ₹150 UTR is verified by an allowlisted admin. |
+| **Monetization Access Gate** | `getUserPaymentStatus()` + exempt-email allowlist + admin approval on `payments` | WhatsApp connect/pairing is blocked until a ₹150 UTR is verified by an allowlisted admin; approval auto-connects the user's session. |
+| **Multi-Tenant Session Isolation** | `SessionManager` — separate `WhatsAppClient` + encrypted Firestore auth state per user (`user_${userId}` session key) | One user's WhatsApp credentials/QR never leak into another user's session. |
 | **Admin Portal Allowlist** | `ALLOWED_ADMIN_EMAILS` in `admin/app.js` + API-side admin check | Only `contact.subhroy@gmail.com` / `aarxslan@gmail.com` can approve payments. |
 | **Command Injection Guard** | `execFile` array arguments + regex sanitizer + `.calc` char whitelist | User input never passed directly to shell interpreters. |
 | **Path Traversal Guard** | `path.normalize()` + `..` checks | Prevents file system access outside authorized temporary folders. |
-| **Arbitrary Code Guard** | Plugin-based static registry; `.calc` uses `new Function` only on a strict regex-whitelisted expression | No dynamic `eval` or arbitrary code execution command allowed. |
+| **Arbitrary Code Guard** | Plugin-based static registry; `.calc` uses `new Function` only on a strict regex-whitelisted expression | Public users can never inject code; the only raw `eval` surface is the **owner-only** `.eval` command. |
 | **AuthN / AuthZ** | scrypt password hashing + timing-safe compare, JWT HTTP-only cookie, Google ID-token verification | Dashboard and API access is authenticated; RBAC weights gate owner-only commands. |
 | **Rate Limiting** | Global Fastify rate-limit (100/min) + per-command sliding-window limiter | DDoS/brute-force and command spam are throttled. |
 

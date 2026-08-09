@@ -27,11 +27,39 @@ export class WhatsAppClient {
   private recentMessages: Map<string, proto.IWebMessageInfo> = new Map();
   private processedMsgIds: Set<string> = new Set();
   private sessionKey: string;
+  private lidToPnMap = new Map<string, string>();
+  private pnToLidMap = new Map<string, string>();
 
   private static readonly MAX_CACHED_MESSAGES = 300;
 
   constructor(sessionKey: string = 'default_session') {
     this.sessionKey = sessionKey;
+  }
+
+  public registerLidMapping(lid?: string, pnJid?: string): void {
+    if (!lid || !pnJid) return;
+    const cleanLid = lid.split('@')[0].split(':')[0].replace(/\D/g, '');
+    const cleanPn = pnJid.split('@')[0].split(':')[0].replace(/\D/g, '');
+    if (cleanLid && cleanPn) {
+      this.lidToPnMap.set(cleanLid, cleanPn);
+      this.pnToLidMap.set(cleanPn, cleanLid);
+      const env = getEnv();
+      if (env.MESSAGE_LOGGING) {
+        logger.info({ cleanLid, cleanPn }, '[LID] Mapping discovered');
+      }
+    }
+  }
+
+  public getPnForLid(lid?: string): string | undefined {
+    if (!lid) return undefined;
+    const cleanLid = lid.split('@')[0].split(':')[0].replace(/\D/g, '');
+    return this.lidToPnMap.get(cleanLid);
+  }
+
+  public getLidForPn(pn?: string): string | undefined {
+    if (!pn) return undefined;
+    const cleanPn = pn.split('@')[0].split(':')[0].replace(/\D/g, '');
+    return this.pnToLidMap.get(cleanPn);
   }
 
   public getStatus(): ConnectionStatus {
@@ -131,6 +159,28 @@ export class WhatsAppClient {
           logger.info('WhatsApp connection successfully established');
           this.reconnectAttempts = 0;
           this.setStatus('CONNECTED');
+        }
+      });
+
+      this.socket.ev.on('contacts.upsert', (contacts) => {
+        for (const contact of contacts) {
+          if (contact.id && contact.lid) {
+            this.registerLidMapping(contact.lid, contact.id);
+          }
+        }
+      });
+
+      this.socket.ev.on('contacts.update', (updates) => {
+        for (const update of updates) {
+          if (update.id && update.lid) {
+            this.registerLidMapping(update.lid, update.id);
+          }
+        }
+      });
+
+      this.socket.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
+        if (lid && jid) {
+          this.registerLidMapping(lid, jid);
         }
       });
 
@@ -348,20 +398,29 @@ export class WhatsAppClient {
     // Resolve real Phone Number JID vs WhatsApp Privacy LID
     const primaryJid = key.participant || key.remoteJid;
     let phoneJid = primaryJid;
+    let senderNumber = primaryJid.split('@')[0].split(':')[0];
 
-    const altJid = (key as any).participantAlt || (key as any).remoteJidAlt;
-    if (altJid && altJid.includes('@s.whatsapp.net')) {
-      phoneJid = altJid;
-    } else if (primaryJid.includes('@lid')) {
-      if (key.remoteJid && key.remoteJid.includes('@s.whatsapp.net')) {
+    if (primaryJid.includes('@lid')) {
+      const mappedPn = this.getPnForLid(primaryJid);
+      if (mappedPn) {
+        phoneJid = `${mappedPn}@s.whatsapp.net`;
+        senderNumber = mappedPn;
+        const env = getEnv();
+        if (env.MESSAGE_LOGGING) {
+          logger.info({ primaryJid, mappedPn, phoneJid }, '[LID] Resolved incoming message');
+        }
+      } else if (key.remoteJid && key.remoteJid.includes('@s.whatsapp.net')) {
         phoneJid = key.remoteJid;
+        senderNumber = phoneJid.split('@')[0].split(':')[0];
       } else if (key.participant && key.participant.includes('@s.whatsapp.net')) {
         phoneJid = key.participant;
+        senderNumber = phoneJid.split('@')[0].split(':')[0];
       }
+    } else {
+      senderNumber = phoneJid.split('@')[0].split(':')[0];
     }
 
     const senderJid = phoneJid;
-    const senderNumber = phoneJid.split('@')[0].split(':')[0];
 
     return {
       id: key.id || '',

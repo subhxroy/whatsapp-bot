@@ -1,6 +1,6 @@
 # Caldera Bot — Private Self-Hosted WhatsApp Bot
 
-> A production-quality, single-user WhatsApp multi-device automation bot with a **₹150 one-time UPI activation** monetization flow, styled with the **Caldera Design System**.
+> A production-quality WhatsApp multi-device automation bot with a **₹150 one-time UPI activation** monetization flow and per-user WhatsApp sessions, styled with the **Caldera Design System**.
 
 ---
 
@@ -18,11 +18,13 @@
 
 ## ⚡ Tech Stack & Architecture
 
-- **Protocol**: Baileys multi-device protocol encapsulated inside `packages/whatsapp`.
-- **Backend API**: Fastify REST & WebSocket gateway (`apps/api`) with JWT auth cookies, BullMQ audit workers, and a background birthday/scheduled-message scheduler.
-- **Frontend Dashboard**: Next.js 15 App Router (`apps/web`) with Tailwind CSS.
-- **Database**: **Cloud Firestore** (`firebase-admin`), with Baileys session keys encrypted at rest using Node.js native `crypto` **AES-256-GCM**.
-- **Monetization**: ₹150 one-time UPI activation → UTR submission → admin approval (dashboard Admin Portal or standalone `admin/` portal) → WhatsApp access unlocked.
+- **Protocol**: Baileys multi-device protocol encapsulated inside `packages/whatsapp`; Baileys session keys are encrypted at rest with Node.js `crypto` **AES-256-GCM** in Firestore.
+- **Multi-Tenant Sessions**: `apps/api/src/session-manager.ts` runs one `WhatsAppClient` per dashboard user (auto-connected on boot for approved users), each wired to its own `CommandDispatcher`.
+- **Backend API**: Fastify REST & WebSocket gateway (`apps/api`) with JWT auth cookies, direct Firestore audit logging, and a 5s background birthday/scheduled-message scheduler.
+- **Frontend Dashboard**: Next.js 15 App Router (`apps/web`) with Tailwind CSS — WhatsApp connection, commands, auto-replies, scheduled messages, AI, media, logs, security, settings.
+- **Database**: **Cloud Firestore** (`firebase-admin`).
+- **Commands**: 43 plugins across `general / utility / media / ai / admin` categories, including `.sticker`, `.vv` (view-once reveal), `.ai`, `.birthday`/`.schedule`, group controls, and fun/utility commands.
+- **Monetization**: ₹150 one-time UPI activation → UTR submission → admin approval (dashboard Admin tab or standalone `admin/` portal) → WhatsApp access unlocked.
 - **Static Surfaces**: `landing/` (marketing) and `admin/` (standalone master admin portal), both Netlify-hosted.
 - **Deployment**: Netlify (dashboard + static sites) / Render (API + bot runtime) / optional `docker-compose.yml` self-hosting.
 
