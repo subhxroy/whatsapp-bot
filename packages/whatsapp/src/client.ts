@@ -4,8 +4,6 @@ import makeWASocket, {
   isJidGroup,
   proto,
   downloadMediaMessage,
-  USyncQuery,
-  USyncUser,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import { Boom } from '@hapi/boom';
@@ -32,7 +30,11 @@ export class WhatsAppClient {
   private lidToPnMap = new Map<string, string>();
   private pnToLidMap = new Map<string, string>();
 
+  /** Short-lived bridge: raw CB:message node messageId -> sender_pn (peer phone JID). */
+  private senderPnCache = new Map<string, { pn: string; ts: number }>();
+
   private static readonly MAX_CACHED_MESSAGES = 300;
+  private static readonly SENDER_PN_CACHE_TTL_MS = 120_000;
 
   constructor(sessionKey: string = 'default_session') {
     this.sessionKey = sessionKey;
@@ -64,76 +66,30 @@ export class WhatsAppClient {
     return this.pnToLidMap.get(cleanPn);
   }
 
-  /**
-   * Phase 1 DIAGNOSTIC ONLY. Tests whether the custom <lid> USync protocol
-   * (the mechanism Baileys v7 uses for PN -> LID resolution) is servable by
-   * WhatsApp servers through the existing 6.17.16 socket. Does NOT alter any
-   * production matching or sending behavior.
-   */
-  public async diagnosePnToLid(pn: string): Promise<{
-    pn: string;
-    lid: string | null;
-    success: boolean;
-    method: string;
-    rawResponseSummary: string;
-  } | null> {
-    if (!this.socket) return null;
-    const cleanPn = String(pn).replace(/\D/g, '');
-    if (!cleanPn) return null;
-    const pnJid = `${cleanPn}@s.whatsapp.net`;
-
-    const out: { pn: string; lid: string | null; success: boolean; method: string; rawResponseSummary: string } = {
-      pn: cleanPn,
-      lid: null,
-      success: false,
-      method: 'usync.lid-protocol',
-      rawResponseSummary: 'not-run',
-    };
-
-    try {
-      const lidProtocol = {
-        name: 'lid',
-        getQueryElement: () => ({ tag: 'lid', attrs: {} }),
-        getUserElement: (user: any) => (user && user.lid ? { tag: 'lid', attrs: { jid: user.lid } } : null),
-        parser: (node: any) => (node && node.tag === 'lid' ? node.attrs?.val ?? null : null),
-      };
-
-      const query = new USyncQuery().withUser(new USyncUser().withLid(pnJid));
-      (query as any).protocols.push(lidProtocol);
-
-      const socket = this.socket as any;
-      const raw = await socket.executeUSyncQuery(query);
-      out.rawResponseSummary = this.safeSummarizeUsync(raw);
-
-      const entry = raw?.list?.[0];
-      const lidVal = entry?.lid ?? entry?.id ?? null;
-      if (lidVal && String(lidVal).includes('lid')) {
-        out.lid = String(lidVal).split('@')[0].split(':')[0];
-        out.success = true;
+  /** Store sender_pn (full phone JID) against the exact message ID it belongs to. */
+  private cacheSenderPn(messageId: string, senderPn: string): void {
+    if (!messageId || !senderPn) return;
+    this.senderPnCache.set(messageId, { pn: senderPn, ts: Date.now() });
+    if (this.senderPnCache.size > 1000) {
+      const now = Date.now();
+      for (const [k, v] of this.senderPnCache) {
+        if (now - v.ts > WhatsAppClient.SENDER_PN_CACHE_TTL_MS) {
+          this.senderPnCache.delete(k);
+        }
       }
-    } catch (err) {
-      out.method = 'usync.lid-protocol:error';
-      out.rawResponseSummary = `error:${(err as Error)?.message ?? 'unknown'}`.slice(0, 300);
     }
-
-    return out;
   }
 
-  private safeSummarizeUsync(raw: any): string {
-    try {
-      if (!raw) return 'null';
-      const list = Array.isArray(raw.list)
-        ? raw.list.slice(0, 5).map((e: any) => {
-            const o: Record<string, unknown> = { id: e?.id ?? null };
-            if (e?.lid !== undefined) o.lid = e.lid;
-            if (e?.contact !== undefined) o.contact = e.contact;
-            return o;
-          })
-        : [];
-      return JSON.stringify({ list, sideList: Array.isArray(raw.sideList) ? raw.sideList.length : 0 }).slice(0, 300);
-    } catch {
-      return 'summarize-error';
+  /** Look up the peer's phone JID attached to this exact message ID (TTL-guarded). */
+  private getCachedSenderPn(messageId?: string | null): string | undefined {
+    if (!messageId) return undefined;
+    const entry = this.senderPnCache.get(messageId);
+    if (!entry) return undefined;
+    if (Date.now() - entry.ts > WhatsAppClient.SENDER_PN_CACHE_TTL_MS) {
+      this.senderPnCache.delete(messageId);
+      return undefined;
     }
+    return entry.pn;
   }
 
   public getStatus(): ConnectionStatus {
@@ -197,13 +153,20 @@ export class WhatsAppClient {
 
       this.socket.ev.on('creds.update', saveCreds);
 
-      // Phase 1 DIAGNOSTIC ONLY: inspect raw incoming CB:message node attributes
-      // for LID/PN identity fields. Read-only; never modifies node or behavior.
+      // Bridge: capture sender_pn from the raw CB:message node and attach it to the
+      // incoming message by exact message ID. Baileys 6.17.16 exposes sender_pn ONLY on
+      // the raw node (messages-recv.js:626) — it never reaches the decoded message or
+      // any event payload, so this short-lived ID-keyed cache is the required bridge.
+      // Read-only on the node; safe TTL; message-associated (never global/last-wins).
       const rawWs = (this.socket as any)?.ws;
       if (rawWs && typeof rawWs.on === 'function') {
         rawWs.on('CB:message', (node: any) => {
           try {
             const attrs = node?.attrs ?? {};
+            const msgId = attrs?.id;
+            if (msgId && attrs?.sender_pn) {
+              this.cacheSenderPn(msgId, String(attrs.sender_pn));
+            }
             if (!String(attrs.from || '').includes('@lid')) return;
             const childJids: Record<string, string> = {};
             if (Array.isArray(node?.content)) {
@@ -354,7 +317,7 @@ export class WhatsAppClient {
             '[CALDERA_DEBUG][INCOMING]'
           );
 
-          const normalized = await this.normalizeMessage(msg);
+          const normalized = this.normalizeMessage(msg);
           if (!normalized) continue;
 
           const env = getEnv();
@@ -534,59 +497,7 @@ export class WhatsAppClient {
     return 'unknown';
   }
 
-  private async resolveLidViaBaileys(lidJid: string): Promise<string | null> {
-    const cleanLid = lidJid.split('@')[0].split(':')[0];
-    let pn: string | null = null;
-    let method = 'none';
-    let signalLidMappingExists = false;
-
-    try {
-      const repo = (this.socket as any)?.signalRepository;
-      const fn = repo?.lidMapping?.getPNForLID;
-      signalLidMappingExists = typeof fn === 'function';
-      if (signalLidMappingExists) {
-        const mapped = await fn.call(repo.lidMapping, lidJid);
-        if (mapped) {
-          pn = String(mapped).split('@')[0].split(':')[0].replace(/\D/g, '');
-          method = 'signalRepository.lidMapping';
-        }
-      }
-    } catch (err) {
-      logger.warn({ err: (err as Error).message, lidJid }, 'BAILEYS_LID_LOOKUP signalRepository error');
-    }
-
-    if (!pn) {
-      try {
-        const socket = this.socket as any;
-        if (typeof socket?.executeUSyncQuery === 'function') {
-          const query = new USyncQuery().withContactProtocol().withUser(new USyncUser().withId(lidJid));
-          const result = await socket.executeUSyncQuery(query);
-          const entry = result?.list?.[0];
-          if (entry?.id && entry.id.includes('@s.whatsapp.net')) {
-            pn = entry.id.split('@')[0].split(':')[0].replace(/\D/g, '');
-            method = 'usync.contact';
-          }
-        }
-      } catch (err) {
-        logger.warn({ err: (err as Error).message, lidJid }, 'BAILEYS_LID_LOOKUP usync error');
-      }
-    }
-
-    logger.info(
-      {
-        lid: cleanLid,
-        lidJid,
-        pn: pn ?? null,
-        method,
-        success: !!pn,
-        signalLidMappingExists,
-      },
-      '[CALDERA_DEBUG][BAILEYS_LID_LOOKUP]'
-    );
-    return pn;
-  }
-
-  private async normalizeMessage(msg: proto.IWebMessageInfo): Promise<NormalizedMessage | null> {
+  private normalizeMessage(msg: proto.IWebMessageInfo): NormalizedMessage | null {
     const key = msg.key;
     if (!key || !key.remoteJid) return null;
 
@@ -635,20 +546,31 @@ export class WhatsAppClient {
       mediaType = 'document';
     }
 
-    // Resolve real Phone Number JID vs WhatsApp Privacy LID
+    // Resolve real Phone Number JID vs WhatsApp Privacy LID.
+    // Priority:
+    //   1. Explicit sender_pn from the raw CB:message node (incoming only, by message ID)
+    //   2. Known LID -> PN mapping (learned via phoneNumberShare/contacts)
+    //   3. Existing normal PN JID on the message
+    //   4. Retain LID as-is (fallback)
     const primaryJid = key.participant || key.remoteJid;
+    const rawSenderPn = !key.fromMe ? this.getCachedSenderPn(key.id) : undefined;
     let phoneJid = primaryJid;
     let senderNumber = primaryJid.split('@')[0].split(':')[0];
 
-    if (primaryJid.includes('@lid')) {
-      let mappedPn = this.getPnForLid(primaryJid);
-      if (!mappedPn) {
-        const resolvedPn = await this.resolveLidViaBaileys(primaryJid);
-        if (resolvedPn) {
-          mappedPn = resolvedPn;
-          this.registerLidMapping(primaryJid, `${resolvedPn}@s.whatsapp.net`);
-        }
-      }
+    if (rawSenderPn) {
+      phoneJid = rawSenderPn;
+      senderNumber = rawSenderPn.split('@')[0].split(':')[0].replace(/\D/g, '');
+      logger.info(
+        {
+          rawSenderPn,
+          resolvedSenderJid: phoneJid,
+          resolvedSenderNumber: senderNumber,
+          messageId: key.id,
+        },
+        '[CALDERA_DEBUG][SENDER_PN]'
+      );
+    } else if (primaryJid.includes('@lid')) {
+      const mappedPn = this.getPnForLid(primaryJid);
       logger.info(
         {
           incomingLid: primaryJid.split('@')[0],
