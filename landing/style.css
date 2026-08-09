@@ -418,9 +418,14 @@ a {
   background: var(--color-paper-white);
   border-radius: var(--radius-cards);
   box-shadow: var(--shadow-artifact);
-  padding: 48px 40px;
+  padding: 48px 36px 44px;
   text-align: center;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .pricing-pill {
@@ -723,7 +728,9 @@ a {
   }
 
   .pricing-card-steep {
-    padding: 32px 20px;
+    padding: 28px 18px 36px;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .price-display {
