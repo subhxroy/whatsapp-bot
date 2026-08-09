@@ -38,11 +38,23 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((res) => {
+        if (res.ok) {
+          return res.json().then((data) => {
+            if (data?.user) {
+              router.push('/dashboard');
+            }
+          });
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/auth/status', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => setIsInitialized(data.initialized))
       .catch(() => setIsInitialized(true));
-  }, []);
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

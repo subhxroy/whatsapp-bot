@@ -19,6 +19,8 @@ const googleSchema = z.object({
   idToken: z.string().min(10),
 });
 
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
+
 export function registerAuthRoutes(fastify: FastifyInstance) {
   // Check if initial setup is needed
   fastify.get('/api/auth/status', async () => {
@@ -44,12 +46,16 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
 
     await logAudit('INITIAL_SETUP', username, 'Owner account created', request.ip);
 
-    const token = fastify.jwt.sign({ id: user.id, username: user.username, role: user.role });
+    const token = fastify.jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      { expiresIn: '30d' }
+    );
     reply.setCookie('token', token, {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
     });
 
     return { success: true, user: { id: user.id, username: user.username, role: user.role }, token };
@@ -73,12 +79,16 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
 
     await logAudit('LOGIN_SUCCESS', username, 'User logged in', request.ip);
 
-    const token = fastify.jwt.sign({ id: user.id, username: user.username, role: user.role });
+    const token = fastify.jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      { expiresIn: '30d' }
+    );
     reply.setCookie('token', token, {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
     });
 
     return { success: true, user: { id: user.id, username: user.username, role: user.role }, token };
@@ -140,13 +150,20 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
 
     await logAudit('LOGIN_SUCCESS', user.username, 'User logged in via Google', request.ip);
 
-    const token = fastify.jwt.sign({ id: user.id, username: user.username, role: user.role });
+    const token = fastify.jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      { expiresIn: '30d' }
+    );
     reply.setCookie('token', token, {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
     });
+
+    return { success: true, user: { id: user.id, username: user.username, role: user.role }, token };
+  });
 
     return { success: true, user: { id: user.id, username: user.username, role: user.role }, token };
   });

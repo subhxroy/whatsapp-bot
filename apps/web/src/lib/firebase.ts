@@ -25,13 +25,19 @@ function firebaseConfig() {
   return required;
 }
 
-function getAuthInstance(): Promise<Auth> {
+export function getAuthInstance(): Promise<Auth> {
   if (!authPromise) {
     authPromise = (async () => {
       const { initializeApp, getApps, getApp } = await import('firebase/app');
-      const { getAuth } = await import('firebase/auth');
+      const { getAuth, setPersistence, browserLocalPersistence } = await import('firebase/auth');
       const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig());
-      return getAuth(app);
+      const auth = getAuth(app);
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (err) {
+        console.warn('[FIREBASE] Failed to set local persistence:', err);
+      }
+      return auth;
     })();
   }
   return authPromise;
