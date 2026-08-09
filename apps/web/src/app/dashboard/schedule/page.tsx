@@ -24,7 +24,12 @@ export default function SchedulePage() {
   // Form states
   const [targetNumber, setTargetNumber] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
+  
+  // Custom 12-Hour AM/PM Time Selector states
+  const [hour12, setHour12] = useState<number>(11);
+  const [minute12, setMinute12] = useState<string>('30');
+  const [ampm, setAmpm] = useState<'AM' | 'PM'>('AM');
+
   const [messageText, setMessageText] = useState('');
   const [type, setType] = useState<'SCHEDULED' | 'BIRTHDAY'>('SCHEDULED');
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +58,18 @@ export default function SchedulePage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Compute 24h format for backend calculation
+  const selectedTime24 = useMemo(() => {
+    let h = hour12;
+    if (ampm === 'AM') {
+      if (h === 12) h = 0;
+    } else {
+      if (h !== 12) h += 12;
+    }
+    const hStr = String(h).padStart(2, '0');
+    return `${hStr}:${minute12}`;
+  }, [hour12, minute12, ampm]);
+
   // Quick preset helper
   const applyPreset = (minutesToAdd: number, targetHour?: number) => {
     const d = new Date();
@@ -66,18 +83,21 @@ export default function SchedulePage() {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const mins = String(d.getMinutes()).padStart(2, '0');
-
     setSelectedDate(`${year}-${month}-${day}`);
-    setSelectedTime(`${hours}:${mins}`);
+
+    const rawHours = d.getHours();
+    const roundedMins = Math.floor(d.getMinutes() / 5) * 5;
+    
+    setAmpm(rawHours >= 12 ? 'PM' : 'AM');
+    setHour12(rawHours % 12 || 12);
+    setMinute12(String(roundedMins).padStart(2, '0'));
   };
 
   // Formatted preview computation
   const formattedPreview = useMemo(() => {
-    if (!selectedDate || !selectedTime) return null;
+    if (!selectedDate || !selectedTime24) return null;
     try {
-      const d = new Date(`${selectedDate}T${selectedTime}`);
+      const d = new Date(`${selectedDate}T${selectedTime24}`);
       if (isNaN(d.getTime())) return null;
 
       const now = new Date();
@@ -110,18 +130,18 @@ export default function SchedulePage() {
     } catch {
       return null;
     }
-  }, [selectedDate, selectedTime]);
+  }, [selectedDate, selectedTime24]);
 
   const handleCreateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetNumber.trim() || !selectedDate || !selectedTime || !messageText.trim()) return;
+    if (!targetNumber.trim() || !selectedDate || !selectedTime24 || !messageText.trim()) return;
 
     setSubmitting(true);
     setError('');
     setSuccessMsg('');
 
     try {
-      const scheduledDateTime = new Date(`${selectedDate}T${selectedTime}`);
+      const scheduledDateTime = new Date(`${selectedDate}T${selectedTime24}`);
       if (isNaN(scheduledDateTime.getTime())) {
         throw new Error('Invalid date or time selected');
       }
@@ -149,7 +169,6 @@ export default function SchedulePage() {
       setShowModal(false);
       setTargetNumber('');
       setSelectedDate('');
-      setSelectedTime('');
       setMessageText('');
       setType('SCHEDULED');
       await fetchScheduledMessages();
@@ -171,6 +190,8 @@ export default function SchedulePage() {
       console.error(err);
     }
   };
+
+  const minutesList = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
   return (
     <div className="space-y-8 text-[#070607]">
@@ -290,11 +311,13 @@ export default function SchedulePage() {
         )}
       </div>
 
+      {/* Modal - Fixed Overflow & Cutoff with max-h-[90vh] & clean 12h AM/PM Clock */}
       {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-[#070607]/60 backdrop-blur-sm p-4 z-50 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-[40px] bg-[#f7f6f2] p-8 shadow-2xl space-y-6 text-[#070607] my-8">
-            <h2 className="font-display text-4xl uppercase text-[#070607]">Schedule Message</h2>
-            <form onSubmit={handleCreateSchedule} className="space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070607]/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-[40px] bg-[#f7f6f2] p-6 sm:p-8 shadow-2xl space-y-5 text-[#070607] my-auto max-h-[90vh] overflow-y-auto">
+            <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">Schedule Message</h2>
+            
+            <form onSubmit={handleCreateSchedule} className="space-y-4">
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
                   Recipient Phone Number (with Country Code)
@@ -305,15 +328,15 @@ export default function SchedulePage() {
                   value={targetNumber}
                   onChange={(e) => setTargetNumber(e.target.value)}
                   placeholder="e.g. 919876543210 or +91 9876543210"
-                  className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#e2e2df] py-3.5 px-6 text-sm font-medium text-[#070607] placeholder-[#070607]/40 focus:border-[#fc5000] focus:outline-none"
+                  className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#e2e2df] py-3 px-5 text-sm font-medium text-[#070607] placeholder-[#070607]/40 focus:border-[#fc5000] focus:outline-none"
                 />
               </div>
 
-              {/* Custom Date & Time Selector Component */}
-              <div className="rounded-[32px] bg-[#e2e2df] p-6 space-y-4">
+              {/* Custom Date & 12-Hour AM/PM Time Selector Component */}
+              <div className="rounded-[32px] bg-[#e2e2df] p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold uppercase tracking-wider text-[#070607]">
-                    📅 Scheduled Delivery Time
+                    📅 Scheduled Delivery Time (12-Hour Format)
                   </label>
                   <Sparkles className="h-4 w-4 text-[#fc5000]" />
                 </div>
@@ -357,7 +380,7 @@ export default function SchedulePage() {
                   </button>
                 </div>
 
-                {/* Separate Date & Time Input Row */}
+                {/* Custom 12-Hour Selector Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#070607]/60 block mb-1">
@@ -371,17 +394,67 @@ export default function SchedulePage() {
                       className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-4 text-xs font-semibold text-[#070607] focus:border-[#fc5000] focus:outline-none"
                     />
                   </div>
+
+                  {/* 12-Hour AM/PM Time Selector */}
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#070607]/60 block mb-1">
-                      Target Time
+                      Target Time (12h Clock)
                     </span>
-                    <input
-                      type="time"
-                      required
-                      value={selectedTime}
-                      onChange={(e) => setSelectedTime(e.target.value)}
-                      className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-4 text-xs font-semibold text-[#070607] focus:border-[#fc5000] focus:outline-none"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      {/* Hour Dropdown (1-12) */}
+                      <select
+                        value={hour12}
+                        onChange={(e) => setHour12(parseInt(e.target.value, 10))}
+                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
+                          <option key={h} value={h}>
+                            {String(h).padStart(2, '0')}
+                          </option>
+                        ))}
+                      </select>
+
+                      <span className="font-bold text-sm text-[#070607]">:</span>
+
+                      {/* Minute Dropdown (00-55) */}
+                      <select
+                        value={minute12}
+                        onChange={(e) => setMinute12(e.target.value)}
+                        className="rounded-full border-1.5 border-[#070607]/20 bg-[#f7f6f2] py-2.5 px-3 text-xs font-bold text-[#070607] focus:border-[#fc5000] focus:outline-none"
+                      >
+                        {minutesList.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* AM/PM Toggle Pills */}
+                      <div className="flex items-center bg-[#f7f6f2] p-1 rounded-full border border-[#070607]/10 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => setAmpm('AM')}
+                          className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full transition ${
+                            ampm === 'AM'
+                              ? 'bg-[#fc5000] text-[#070607]'
+                              : 'text-[#070607]/60 hover:text-[#070607]'
+                          }`}
+                        >
+                          AM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAmpm('PM')}
+                          className={`px-2.5 py-1 text-[11px] font-extrabold rounded-full transition ${
+                            ampm === 'PM'
+                              ? 'bg-[#fc5000] text-[#070607]'
+                              : 'text-[#070607]/60 hover:text-[#070607]'
+                          }`}
+                        >
+                          PM
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -403,7 +476,7 @@ export default function SchedulePage() {
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as any)}
-                  className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#e2e2df] py-3.5 px-6 text-sm font-medium text-[#070607] focus:border-[#fc5000] focus:outline-none"
+                  className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#e2e2df] py-3 px-5 text-sm font-medium text-[#070607] focus:border-[#fc5000] focus:outline-none"
                 >
                   <option value="SCHEDULED">Standard Scheduled Message</option>
                   <option value="BIRTHDAY">Birthday Wish</option>
@@ -428,14 +501,14 @@ export default function SchedulePage() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 rounded-full border border-[#070607] py-3.5 text-sm font-semibold text-[#070607] hover:bg-[#e2e2df]"
+                  className="flex-1 rounded-full border border-[#070607] py-3 text-sm font-semibold text-[#070607] hover:bg-[#e2e2df]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-full bg-[#fc5000] py-3.5 text-sm font-semibold text-[#070607] hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50"
+                  className="flex-1 rounded-full bg-[#fc5000] py-3 text-sm font-semibold text-[#070607] hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50"
                 >
                   {submitting ? 'Scheduling...' : 'Save Schedule'}
                 </button>
