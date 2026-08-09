@@ -31,62 +31,73 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
   const text = (msg.body || '').trim();
   const rules = await db.getEnabledAutoReplies();
 
+  console.log(`[CALDERA_DEBUG][AUTOREPLY] enabledRules=${rules.length} senderNumber=${msg.senderNumber} senderJid=${msg.senderJid} chatId=${msg.chatId} fromMe=${msg.fromMe} bodyLen=${text.length}`);
+
   if (rules.length === 0) return false;
 
   for (const rule of rules) {
-    // Specific phone number filter check
+    const candidates = [msg.senderNumber, msg.senderJid, msg.chatId].filter(Boolean) as string[];
+    let phoneMatch = true;
     if (rule.specificNumber && rule.specificNumber.trim()) {
-      const candidates = [msg.senderNumber, msg.senderJid, msg.chatId].filter(Boolean) as string[];
-      const matched = candidates.some((cand) => isPhoneMatch(rule.specificNumber!, cand));
-      if (!matched) {
-        console.log(`[AUTOREPLY] Rule ${rule.id} target phone filter (${rule.specificNumber}) did not match candidates: ${candidates.join(', ')}`);
-        continue;
-      }
+      phoneMatch = candidates.some((cand) => isPhoneMatch(rule.specificNumber!, cand));
     }
 
-    let matches = false;
+    let triggerMatch = false;
     const trigger = rule.trigger.trim();
-
     if (rule.matchType === 'ANY' || trigger === '*') {
-      matches = true;
+      triggerMatch = true;
     } else if (text) {
       switch (rule.matchType) {
         case 'EXACT':
-          matches = text.toLowerCase() === trigger.toLowerCase();
+          triggerMatch = text.toLowerCase() === trigger.toLowerCase();
           break;
         case 'CONTAINS':
-          matches = text.toLowerCase().includes(trigger.toLowerCase());
+          triggerMatch = text.toLowerCase().includes(trigger.toLowerCase());
           break;
         case 'STARTS_WITH':
-          matches = text.toLowerCase().startsWith(trigger.toLowerCase());
+          triggerMatch = text.toLowerCase().startsWith(trigger.toLowerCase());
           break;
         case 'ENDS_WITH':
-          matches = text.toLowerCase().endsWith(trigger.toLowerCase());
+          triggerMatch = text.toLowerCase().endsWith(trigger.toLowerCase());
           break;
         case 'REGEX':
           try {
             const rx = new RegExp(trigger, 'i');
-            matches = rx.test(text);
+            triggerMatch = rx.test(text);
           } catch {
-            matches = false;
+            triggerMatch = false;
           }
           break;
       }
     }
 
-    if (matches) {
-      const cleanSender = extractCleanPhone(msg.senderJid) || extractCleanPhone(msg.chatId) || msg.chatId;
-      const rateKey = `autoreply_${rule.id}_${cleanSender}`;
-      if (autoReplyRateLimiter.isRateLimited(rateKey)) {
-        console.log(`[AUTOREPLY] Rule ${rule.id} rate limited for sender ${cleanSender}`);
-        return false;
-      }
+    const cleanSender = extractCleanPhone(msg.senderJid) || extractCleanPhone(msg.chatId) || msg.chatId;
+    const rateKey = `autoreply_${rule.id}_${cleanSender}`;
+    const rateLimited = phoneMatch && triggerMatch ? autoReplyRateLimiter.isRateLimited(rateKey) : false;
 
-      console.log(`[AUTOREPLY] Rule ${rule.id} matched incoming message from ${cleanSender} (chatId: ${msg.chatId}). Sending auto-response: "${rule.response}"`);
-      await client.sendMessage(msg.chatId, rule.response);
-      return true;
+    console.log(
+      `[CALDERA_DEBUG][AUTOREPLY] ruleId=${rule.id} enabled=${rule.enabled} trigger=${JSON.stringify(rule.trigger)} matchType=${rule.matchType} specificNumber=${JSON.stringify(rule.specificNumber)} senderNumber=${msg.senderNumber} phoneMatch=${phoneMatch} triggerMatch=${triggerMatch} rateLimit=${rateLimited}`
+    );
+
+    if (!phoneMatch || !triggerMatch) {
+      if (!phoneMatch) {
+        console.log(`[AUTOREPLY] Rule ${rule.id} target phone filter (${rule.specificNumber}) did not match candidates: ${candidates.join(', ')}`);
+      }
+      continue;
     }
+    if (rateLimited) {
+      console.log(`[AUTOREPLY] Rule ${rule.id} rate limited for sender ${cleanSender}`);
+      return false;
+    }
+
+    console.log(
+      `[CALDERA_DEBUG][SEND] chatId=${msg.chatId} senderJid=${msg.senderJid} senderNumber=${msg.senderNumber} replyLength=${(rule.response || '').length}`
+    );
+    console.log(`[AUTOREPLY] Rule ${rule.id} matched incoming message from ${cleanSender} (chatId: ${msg.chatId}). Sending auto-response: "${rule.response}"`);
+    await client.sendMessage(msg.chatId, rule.response);
+    return true;
   }
 
+  console.log(`[CALDERA_DEBUG][AUTOREPLY] no rule matched`);
   return false;
 }

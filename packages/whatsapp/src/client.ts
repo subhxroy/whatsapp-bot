@@ -180,6 +180,7 @@ export class WhatsAppClient {
 
       this.socket.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
         if (lid && jid) {
+          logger.info({ lid, jid }, '[CALDERA_DEBUG][LID] phoneNumberShare received');
           this.registerLidMapping(lid, jid);
         }
       });
@@ -214,6 +215,30 @@ export class WhatsAppClient {
           }
 
           this.cacheMessage(msg.key.id, msg);
+
+          const msgKey = msg.key as any;
+          const contextInfo = this.extractContextInfo(msg.message);
+          logger.info(
+            {
+              remoteJid: msgKey.remoteJid,
+              participant: msgKey.participant,
+              participantAlt: msgKey.participantAlt,
+              remoteJidAlt: msgKey.remoteJidAlt,
+              fromMe: msgKey.fromMe,
+              messageId: msgKey.id,
+              type,
+              contextInfo: {
+                participant: contextInfo.participant,
+                remoteJid: contextInfo.remoteJid,
+                mentionedJid: contextInfo.mentionedJid,
+                isForwarded: contextInfo.isForwarded,
+                businessOwnerJid: contextInfo.businessOwnerJid,
+                hasQuotedMessage: !!contextInfo.quotedMessage,
+              },
+              senderPn: (msg as any).senderPn,
+            },
+            '[CALDERA_DEBUG][INCOMING]'
+          );
 
           const normalized = this.normalizeMessage(msg);
           if (!normalized) continue;
@@ -271,10 +296,27 @@ export class WhatsAppClient {
 
   public async sendMessage(chatId: string, content: string | { text: string }): Promise<any> {
     if (!this.socket || this.status !== 'CONNECTED') {
+      logger.error(
+        { success: false, messageId: null, error: 'client not connected', chatId },
+        '[CALDERA_DEBUG][SEND_RESULT]'
+      );
       throw new Error('WhatsApp client is not connected');
     }
     const payload = typeof content === 'string' ? { text: content } : content;
-    return await this.socket.sendMessage(chatId, payload);
+    try {
+      const result = await this.socket.sendMessage(chatId, payload);
+      logger.info(
+        { success: true, messageId: result?.key?.id, error: null, chatId },
+        '[CALDERA_DEBUG][SEND_RESULT]'
+      );
+      return result;
+    } catch (err) {
+      logger.error(
+        { success: false, messageId: null, error: (err as Error)?.message, chatId },
+        '[CALDERA_DEBUG][SEND_RESULT]'
+      );
+      throw err;
+    }
   }
 
   public async sendMedia(
@@ -346,6 +388,38 @@ export class WhatsAppClient {
     return current as proto.IMessage;
   }
 
+  private extractContextInfo(messageContent: proto.IMessage | null | undefined): any {
+    if (!messageContent) return {};
+    const candidates = [
+      'extendedTextMessage',
+      'imageMessage',
+      'videoMessage',
+      'audioMessage',
+      'documentMessage',
+      'stickerMessage',
+      'buttonsResponseMessage',
+      'listResponseMessage',
+    ];
+    for (const key of candidates) {
+      const sub = (messageContent as any)[key];
+      if (sub && sub.contextInfo) return sub.contextInfo;
+    }
+    return {};
+  }
+
+  private getMessageBodyType(content: proto.IMessage): string {
+    if (content.conversation) return 'conversation';
+    if (content.extendedTextMessage) return 'extendedTextMessage';
+    if (content.imageMessage) return 'imageMessage';
+    if (content.videoMessage) return 'videoMessage';
+    if (content.audioMessage) return 'audioMessage';
+    if (content.stickerMessage) return 'stickerMessage';
+    if (content.documentMessage) return 'documentMessage';
+    if (content.buttonsResponseMessage) return 'buttonsResponseMessage';
+    if (content.listResponseMessage) return 'listResponseMessage';
+    return 'unknown';
+  }
+
   private normalizeMessage(msg: proto.IWebMessageInfo): NormalizedMessage | null {
     const key = msg.key;
     if (!key || !key.remoteJid) return null;
@@ -402,6 +476,20 @@ export class WhatsAppClient {
 
     if (primaryJid.includes('@lid')) {
       const mappedPn = this.getPnForLid(primaryJid);
+      logger.info(
+        {
+          incomingLid: primaryJid.split('@')[0],
+          mappedPn: mappedPn ?? null,
+          lidToPnMapSize: this.lidToPnMap.size,
+        },
+        '[CALDERA_DEBUG][LID]'
+      );
+      if (!mappedPn) {
+        logger.warn(
+          { incomingLid: primaryJid.split('@')[0], lidToPnMapSize: this.lidToPnMap.size },
+          'LID_MAPPING_MISSING'
+        );
+      }
       if (mappedPn) {
         phoneJid = `${mappedPn}@s.whatsapp.net`;
         senderNumber = mappedPn;
@@ -421,6 +509,16 @@ export class WhatsAppClient {
     }
 
     const senderJid = phoneJid;
+
+    logger.info(
+      {
+        senderJid: phoneJid,
+        senderNumber,
+        chatId: key.remoteJid,
+        bodyType: this.getMessageBodyType(finalContent),
+      },
+      '[CALDERA_DEBUG][NORMALIZED]'
+    );
 
     return {
       id: key.id || '',
