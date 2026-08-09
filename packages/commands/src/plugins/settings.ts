@@ -19,9 +19,13 @@ export const settingsCommand: CommandPlugin = {
       text += `• *Default Prefix:* \`${ctx.prefix}\`\n`;
       text += `• *Message Logging:* ${env.MESSAGE_LOGGING ? 'Enabled' : 'Disabled'}\n`;
       text += `• *AI Assistant:* ${env.AI_ENABLED ? 'Enabled' : 'Disabled'}\n\n`;
-      text += `_Database Settings overrides:_\n`;
+      text += `_Database Settings:_\n`;
+      const SENSITIVE_PATTERNS = ['key', 'secret', 'token', 'password', 'uid', 'credential'];
       for (const s of dbSettings) {
-        text += `• \`${s.key}\`: ${s.value}\n`;
+        const keyLower = s.key.toLowerCase();
+        const isSensitive = SENSITIVE_PATTERNS.some((p) => keyLower.includes(p));
+        const displayValue = isSensitive ? '***' : s.value;
+        text += `• \`${s.key}\`: ${displayValue}\n`;
       }
       return await ctx.reply(text);
     }

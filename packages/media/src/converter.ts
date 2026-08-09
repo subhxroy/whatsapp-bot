@@ -116,3 +116,34 @@ export async function stickerToImage(stickerBuffer: Buffer, maxSize = DEFAULT_MA
     await safeUnlink(outputPath);
   }
 }
+
+/**
+ * Extract audio from a video buffer and return as AAC/MP4 audio buffer.
+ * Used by the .toaudio / .mp3 command.
+ */
+export async function extractAudioFromVideo(videoBuffer: Buffer, maxSize = DEFAULT_MAX_SIZE_BYTES): Promise<Buffer> {
+  validateMediaBuffer(videoBuffer, maxSize);
+
+  const inputPath = await createTempFile('mp4', videoBuffer);
+  const outputPath = path.join(os.tmpdir(), `audio_${crypto.randomBytes(8).toString('hex')}.mp4`);
+
+  try {
+    // Extract audio stream only — no video re-encoding
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-i', inputPath,
+      '-vn',             // disable video
+      '-acodec', 'aac',  // encode audio as AAC
+      '-ab', '128k',     // 128kbps bitrate
+      '-ar', '44100',    // 44.1kHz sample rate
+      outputPath,
+    ]);
+
+    const resultBuffer = await fs.readFile(outputPath);
+    return resultBuffer;
+  } finally {
+    await safeUnlink(inputPath);
+    await safeUnlink(outputPath);
+  }
+}
+

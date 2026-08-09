@@ -373,7 +373,7 @@ export class WhatsAppClient {
       } catch {}
       this.socket = null;
     }
-    await clearFirebaseAuthState();
+    await clearFirebaseAuthState(this.sessionKey);
     this.setStatus('DISCONNECTED');
   }
 

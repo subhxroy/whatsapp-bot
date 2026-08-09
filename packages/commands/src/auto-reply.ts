@@ -62,6 +62,20 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
           break;
         case 'REGEX':
           try {
+            // 🔒 SECURITY: ReDoS protection — reject obviously dangerous patterns
+            // and limit trigger length to prevent catastrophic backtracking.
+            if (trigger.length > 200) {
+              console.warn(`[AUTOREPLY] Rule ${rule.id} REGEX trigger too long (${trigger.length} chars), skipping`);
+              triggerMatch = false;
+              break;
+            }
+            // Detect and reject common ReDoS patterns: (a+)+, (a*)*,  (a|a)* etc.
+            const redosPatterns = [/\(\.\*\)\+/, /\(\.\+\)\*/, /\([^)]*\+[^)]*\)\+/, /\([^)]*\*[^)]*\)\*/, /\([^)]+\|[^)]+\)\*/];
+            if (redosPatterns.some((p) => p.test(trigger))) {
+              console.warn(`[AUTOREPLY] Rule ${rule.id} REGEX trigger matches known ReDoS pattern, skipping`);
+              triggerMatch = false;
+              break;
+            }
             const rx = new RegExp(trigger, 'i');
             triggerMatch = rx.test(text);
           } catch {

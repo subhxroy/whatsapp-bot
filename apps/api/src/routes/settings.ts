@@ -22,20 +22,23 @@ function checkAdmin(user: any): boolean {
 }
 
 export function registerSettingsRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/settings', { onRequest: [fastify.authenticate] }, async () => {
+  fastify.get('/api/settings', { onRequest: [fastify.authenticate] }, async (request) => {
+    const user = (request as any).user;
+    const isAdmin = checkAdmin(user);
     const env = getEnv();
     const dbSettings = await db.getSettings();
 
     const settingsMap: Record<string, string> = {
       AI_ENABLED: String(env.AI_ENABLED),
       AI_PROVIDER: 'gemini',
-      GEMINI_API_KEY: env.GEMINI_API_KEY || '',
-      OPENAI_API_KEY: env.OPENAI_API_KEY || '',
+      // 🔒 SECURITY: API keys are only exposed to admins, masked for regular users
+      GEMINI_API_KEY: isAdmin ? (env.GEMINI_API_KEY || '') : (env.GEMINI_API_KEY ? '***' : ''),
+      OPENAI_API_KEY: isAdmin ? (env.OPENAI_API_KEY || '') : (env.OPENAI_API_KEY ? '***' : ''),
       OPENAI_BASE_URL: env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
       OLLAMA_BASE_URL: env.OLLAMA_BASE_URL || 'http://localhost:11434',
       MESSAGE_LOGGING: String(env.MESSAGE_LOGGING),
       COMMAND_PREFIX: '.',
-      BOT_OWNER_NUMBER: env.BOT_OWNER_NUMBER || '',
+      BOT_OWNER_NUMBER: isAdmin ? (env.BOT_OWNER_NUMBER || '') : '***',
     };
 
     for (const item of dbSettings) {
@@ -48,7 +51,7 @@ export function registerSettingsRoutes(fastify: FastifyInstance) {
         aiEnabled: settingsMap.AI_ENABLED === 'true',
         mediaRetention: env.MEDIA_RETENTION,
         analytics: env.ANALYTICS,
-        ownerNumber: settingsMap.BOT_OWNER_NUMBER,
+        ownerNumber: isAdmin ? settingsMap.BOT_OWNER_NUMBER : '***',
       },
       settingsMap,
       settings: dbSettings,

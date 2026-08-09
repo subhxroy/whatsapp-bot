@@ -49,6 +49,16 @@ import {
   evalCommand,
   restartCommand,
 } from './plugins/system';
+// ✨ New commands (43 → 51)
+import {
+  timeCommand,
+  currencyCommand,
+  remindCommand,
+  emojiCommand,
+  roastCommand,
+  summarizeCommand,
+  imagineCommand,
+} from './plugins/extras';
 
 class CommandRegistry {
   private commands: Map<string, CommandPlugin> = new Map();
@@ -60,15 +70,32 @@ class CommandRegistry {
 
   private registerDefaultCommands() {
     const defaults = [
+      // === GENERAL ===
       pingCommand,
       menuCommand,
       helpCommand,
       aboutCommand,
       ownerCommand,
+
+      // === SETTINGS / SYSTEM ===
       settingsCommand,
+      systemCommand,
+      evalCommand,
+      restartCommand,
+
+      // === MEDIA ===
       stickerCommand,
       toImgCommand,
+      toAudioCommand,
+      toGifCommand,
+      vvCommand,
+
+      // === AI ===
       aiCommand,
+      summarizeCommand,    // NEW #44
+      imagineCommand,      // NEW #45
+
+      // === GROUP MANAGEMENT ===
       groupCommand,
       promoteCommand,
       demoteCommand,
@@ -78,21 +105,25 @@ class CommandRegistry {
       groupInfoCommand,
       linkCommand,
       antilinkCommand,
-      ytmp3Command,
-      ytmp4Command,
-      vvCommand,
-      birthdayCommand,
-      idCommand,
-      calcCommand,
-      pollCommand,
-      toAudioCommand,
-      toGifCommand,
       adminsCommand,
+
+      // === UTILITY ===
       translateCommand,
       weatherCommand,
       dictCommand,
       shortenCommand,
       qrcodeCommand,
+      calcCommand,
+      pollCommand,
+      birthdayCommand,
+      idCommand,
+      timeCommand,         // NEW #46
+      currencyCommand,     // NEW #47
+      remindCommand,       // NEW #48
+      ytmp3Command,
+      ytmp4Command,
+
+      // === FUN ===
       rollCommand,
       flipCommand,
       quoteCommand,
@@ -100,9 +131,8 @@ class CommandRegistry {
       triviaCommand,
       factCommand,
       eightBallCommand,
-      systemCommand,
-      evalCommand,
-      restartCommand,
+      emojiCommand,        // NEW #49
+      roastCommand,        // NEW #50
     ];
 
     for (const cmd of defaults) {

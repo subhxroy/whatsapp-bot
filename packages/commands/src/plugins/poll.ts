@@ -12,7 +12,7 @@ export const pollCommand: CommandPlugin = {
     const rawArgs = ctx.args.join(' ').trim();
     if (!rawArgs || !rawArgs.includes('|')) {
       return await ctx.reply(
-        `📊 *WHATSAPP POLL CREATOR*\n\n` +
+        `\u{1F4CA} *WHATSAPP POLL CREATOR*\n\n` +
           `*Usage Syntax:*\n` +
           `\`${ctx.prefix}poll <question> | <option1> | <option2> | ...\`\n\n` +
           `*Example:*\n` +
@@ -22,12 +22,34 @@ export const pollCommand: CommandPlugin = {
 
     const parts = rawArgs.split('|').map((p) => p.trim()).filter(Boolean);
     if (parts.length < 3) {
-      return await ctx.reply('❌ Poll requires a question and at least 2 options separated by `|`.');
+      return await ctx.reply('\u274c Poll requires a question and at least 2 options separated by `|`.');
     }
 
     const question = parts[0];
-    const options = parts.slice(1);
+    const options = parts.slice(1, 13); // WhatsApp supports up to 12 poll options
 
-    await ctx.replyWithPoll(question, options);
+    try {
+      // Use the actual Baileys sendMessage poll API via socket on client
+      const socket = (ctx.client as any).socket;
+      if (socket && typeof socket.sendMessage === 'function') {
+        await socket.sendMessage(ctx.message.chatId, {
+          poll: {
+            name: question,
+            values: options,
+            selectableCount: 1,
+          },
+        });
+      } else {
+        // Fallback: format poll as readable text if socket not accessible
+        let pollText = `\u{1F4CA} *POLL: ${question}*\n\n`;
+        options.forEach((opt, i) => {
+          pollText += `${['1\ufe0f\u20e3','2\ufe0f\u20e3','3\ufe0f\u20e3','4\ufe0f\u20e3','5\ufe0f\u20e3','6\ufe0f\u20e3','7\ufe0f\u20e3','8\ufe0f\u20e3','9\ufe0f\u20e3','0\ufe0f\u20e3'][i] || `${i+1}.`} ${opt}\n`;
+        });
+        pollText += `\n_Reply with the number of your choice!_`;
+        await ctx.reply(pollText);
+      }
+    } catch (err: any) {
+      await ctx.reply(`\u274c Failed to create poll: ${err.message || 'Unknown error'}`);
+    }
   },
 };

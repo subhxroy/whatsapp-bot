@@ -19,7 +19,7 @@ const googleSchema = z.object({
   idToken: z.string().min(10),
 });
 
-const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds (shortened for security)
 
 export function registerAuthRoutes(fastify: FastifyInstance) {
   // Check if initial setup is needed
@@ -48,7 +48,7 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
 
     const token = fastify.jwt.sign(
       { id: user.id, username: user.username, role: user.role },
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
     reply.setCookie('token', token, {
       path: '/',
@@ -81,7 +81,7 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
 
     const token = fastify.jwt.sign(
       { id: user.id, username: user.username, role: user.role },
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
     reply.setCookie('token', token, {
       path: '/',
@@ -152,7 +152,7 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
 
     const token = fastify.jwt.sign(
       { id: user.id, username: user.username, role: user.role },
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
     reply.setCookie('token', token, {
       path: '/',

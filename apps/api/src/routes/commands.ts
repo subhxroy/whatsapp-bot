@@ -93,7 +93,7 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
     const commandName = parts[0].toLowerCase();
     const args = parts.slice(1);
 
-    const plugin = registry.getCommand(commandName) || registry.getCommandByAlias(commandName);
+    const plugin = registry.getCommand(commandName);
     if (!plugin) {
       return reply.status(404).send({ error: `Command '.${commandName}' not found in registry.` });
     }

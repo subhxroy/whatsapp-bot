@@ -23,7 +23,7 @@
 - **Backend API**: Fastify REST & WebSocket gateway (`apps/api`) with JWT auth cookies, direct Firestore audit logging, and a 5s background birthday/scheduled-message scheduler.
 - **Frontend Dashboard**: Next.js 15 App Router (`apps/web`) with Tailwind CSS — WhatsApp connection, commands, auto-replies, scheduled messages, AI, media, logs, security, settings.
 - **Database**: **Cloud Firestore** (`firebase-admin`).
-- **Commands**: 43 plugins across `general / utility / media / ai / admin` categories, including `.sticker`, `.vv` (view-once reveal), `.ai`, `.birthday`/`.schedule`, group controls, and fun/utility commands.
+- **Commands**: 51 plugins across `general / utility / media / ai / admin / group / fun` categories, including `.sticker`, `.vv` (view-once reveal), `.ai`, `.summarize`, `.imagine`, `.birthday`/`.schedule`, real group admin controls, and fun/utility commands.
 - **Monetization**: ₹150 one-time UPI activation → UTR submission → admin approval (dashboard Admin tab or standalone `admin/` portal) → WhatsApp access unlocked.
 - **Static Surfaces**: `landing/` (marketing) and `admin/` (standalone master admin portal), both Netlify-hosted.
 - **Deployment**: Netlify (dashboard + static sites) / Render (API + bot runtime) / optional `docker-compose.yml` self-hosting.

@@ -146,15 +146,32 @@ export const qrcodeCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  execute: async ({ client, msg, message = msg, args }: any) => {
-    const activeMsg = msg || message;
-    const text = args.join(' ').trim();
+  execute: async (ctx) => {
+    const text = ctx.args.join(' ').trim();
     if (!text) {
-      await client.sendMessage(activeMsg.chatId, '📱 Usage: `.qrcode <text or link>`');
-      return;
+      return await ctx.reply(`\u{1F4F1} Usage: \`${ctx.prefix}qrcode <text or link>\``);
     }
 
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(text)}`;
-    await client.sendMessage(activeMsg.chatId, `📱 *QR Code Generated for:* "${text}"\n${qrUrl}`);
+    if (text.length > 300) {
+      return await ctx.reply('\u274c Text too long for QR code. Keep it under 300 characters.');
+    }
+
+    await ctx.reply('\u23F3 Generating QR code image...');
+
+    try {
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=10&data=${encodeURIComponent(text)}`;
+      const res = await fetch(qrUrl, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error(`QR API error: ${res.status}`);
+
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      await ctx.replyMedia(buffer, 'image', {
+        caption: `\u{1F4F1} *QR Code generated for:*\n\`${text.slice(0, 100)}${text.length > 100 ? '...' : ''}\``,
+        mimetype: 'image/png',
+      });
+    } catch (err: any) {
+      await ctx.reply(`\u274c Failed to generate QR code: ${err.message || 'Network error'}`);
+    }
   },
 };

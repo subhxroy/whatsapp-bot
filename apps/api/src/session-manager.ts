@@ -57,10 +57,30 @@ export class SessionManager {
     return client?.getStatus() === 'CONNECTED';
   }
 
+  /**
+   * Find a client whose userId matches the sender's JID prefix.
+   * Used by the scheduler as fallback when exact lookup fails.
+   * Compares the userId (session key) to the phone-number part of the senderJid.
+   */
   getClientForMessage(senderJid: string): WhatsAppClient | undefined {
-    for (const [, client] of this.sessions) {
-      if (client.getStatus() === 'CONNECTED') return client;
+    const senderPhone = senderJid.split('@')[0].split(':')[0].replace(/\D/g, '');
+
+    // First: exact session key match by phone number
+    for (const [userId, client] of this.sessions) {
+      const sessionPhone = userId.replace(/\D/g, '');
+      if (sessionPhone === senderPhone && client.getStatus() === 'CONNECTED') {
+        return client;
+      }
     }
+
+    // Second: try matching by email/username prefix (for Google sign-in users)
+    for (const [userId, client] of this.sessions) {
+      if (senderJid.includes(userId) && client.getStatus() === 'CONNECTED') {
+        return client;
+      }
+    }
+
+    // No match found — do NOT return a random client (security: prevents wrong-user sends)
     return undefined;
   }
 

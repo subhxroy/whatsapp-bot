@@ -39,9 +39,29 @@ export class CommandDispatcher {
       const plugin = registry.getCommand(commandName);
       if (!plugin || !plugin.enabled) return;
 
-      // 2. Permission determination (Owner status is true if fromMe or matches BOT_OWNER_NUMBER)
+      // 2. Permission determination
+      // Owner = fromMe OR matches BOT_OWNER_NUMBER
+      // Admin = is a WhatsApp group admin in this chat
       const callerIsOwner = msg.fromMe || isOwner(msg.senderJid, env.BOT_OWNER_NUMBER, msg.fromMe);
-      const callerRole: Role = callerIsOwner ? 'OWNER' : 'PUBLIC';
+      let callerRole: Role = callerIsOwner ? 'OWNER' : 'PUBLIC';
+
+      // Check group admin status when the command needs it and we have a group message
+      if (!callerIsOwner && msg.isGroup && (plugin.ownerOnly === false)) {
+        try {
+          const socket = (this.client as any).socket;
+          if (socket && typeof socket.groupMetadata === 'function') {
+            const meta = await socket.groupMetadata(msg.chatId);
+            const senderClean = msg.senderJid.split('@')[0].split(':')[0];
+            const isGroupAdmin = (meta?.participants || []).some((p: any) => {
+              const pClean = (p.id || '').split('@')[0].split(':')[0];
+              return pClean === senderClean && (p.admin === 'admin' || p.admin === 'superadmin');
+            });
+            if (isGroupAdmin) callerRole = 'ADMIN';
+          }
+        } catch {
+          // Group metadata fetch failed — default to PUBLIC
+        }
+      }
 
       if (plugin.ownerOnly && callerRole !== 'OWNER') {
         await this.client.sendMessage(
@@ -62,6 +82,7 @@ export class CommandDispatcher {
       }
 
       // 4. Execution Context construction
+      const socket = (this.client as any).socket;
       const ctx = {
         client: this.client,
         message: msg,
@@ -75,7 +96,67 @@ export class CommandDispatcher {
           type: 'image' | 'video' | 'audio' | 'sticker',
           options: { caption?: string; mimetype?: string } = {}
         ) => this.client.sendMedia(msg.chatId, media, type, options),
+        // Send video with optional gifPlayback (for .togif)
+        replyWithVideo: async (media: Buffer, mimetype: string, gifPlayback = false, caption?: string) => {
+          if (socket && typeof socket.sendMessage === 'function') {
+            return socket.sendMessage(msg.chatId, {
+              video: media,
+              mimetype,
+              gifPlayback,
+              ...(caption ? { caption } : {}),
+            });
+          }
+          return this.client.sendMedia(msg.chatId, media, 'video', { caption });
+        },
+        // Send audio as voice note (for .toaudio)
+        replyWithAudio: async (media: Buffer, mimetype: string) => {
+          if (socket && typeof socket.sendMessage === 'function') {
+            return socket.sendMessage(msg.chatId, {
+              audio: media,
+              mimetype,
+              ptt: false,
+            });
+          }
+          return this.client.sendMedia(msg.chatId, media, 'audio');
+        },
+        // Download media from the quoted/replied-to message (for .toaudio, .togif)
+        downloadQuotedMedia: async (): Promise<Buffer> => {
+          const contextInfo = msg.rawMessage?.message?.extendedTextMessage?.contextInfo;
+          const quotedMsg = contextInfo?.quotedMessage;
+          const quotedStanzaId = contextInfo?.stanzaId;
+          const quotedParticipant = contextInfo?.participant || msg.chatId;
+
+          if (!quotedMsg) throw new Error('No quoted message found');
+
+          // Try to get cached original message first (has full media keys)
+          if (quotedStanzaId) {
+            const cached = this.client.getCachedMessage(quotedStanzaId);
+            if (cached) {
+              return this.client.downloadMedia(cached);
+            }
+          }
+
+          // Build a synthetic message object for Baileys downloadMediaMessage
+          const syntheticMsg = {
+            key: { id: quotedStanzaId || 'quoted', remoteJid: msg.chatId, participant: quotedParticipant },
+            message: quotedMsg,
+          };
+          return this.client.downloadMedia(syntheticMsg);
+        },
+        // Fetch group metadata from Baileys socket (for .admins)
+        getGroupMetadata: async () => {
+          if (!msg.isGroup) return null;
+          try {
+            if (socket && typeof socket.groupMetadata === 'function') {
+              return await socket.groupMetadata(msg.chatId);
+            }
+            return null;
+          } catch {
+            return null;
+          }
+        },
       };
+
 
       try {
         const runFn = plugin.execute || plugin.handler;

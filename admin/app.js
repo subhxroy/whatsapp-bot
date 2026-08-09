@@ -160,7 +160,11 @@ function renderTable() {
         ${req.status === 'PENDING' ? `
           <button onclick="approvePayment('${req.id}')" class="btn btn-primary btn-sm">Approve Access</button>
           <button onclick="rejectPayment('${req.id}')" class="btn btn-secondary btn-sm">Reject</button>
-        ` : `<span class="text-muted font-bold text-xs">${req.status} LOCKED</span>`}
+        ` : req.status === 'APPROVED' ? `
+          <button onclick="rejectPayment('${req.id}')" class="btn btn-secondary btn-sm" style="background-color: #fc5000; color: #ffffff; font-weight: bold;" title="Revoke user access & disconnect WhatsApp session">Revoke Access</button>
+        ` : `
+          <button onclick="approvePayment('${req.id}')" class="btn btn-primary btn-sm">Re-Approve Access</button>
+        `}
       </td>
     </tr>
   `).join('');
@@ -179,31 +183,31 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 window.approvePayment = async function(id) {
   try {
     await db.collection('payments').doc(id).set({ status: 'APPROVED', updatedAt: new Date().toISOString() }, { merge: true });
-    showNotice('✅ User payment approved! Access granted.');
-  } catch {
+  } catch {}
+  try {
     await fetch(`${API_BASE_URL}/api/payment/admin/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentId: id })
     });
-    showNotice('✅ Payment approved!');
-    fetchFromApi();
-  }
+  } catch {}
+  showNotice('✅ User payment approved! Access granted.');
+  fetchFromApi();
 };
 
 window.rejectPayment = async function(id) {
   try {
     await db.collection('payments').doc(id).set({ status: 'REJECTED', updatedAt: new Date().toISOString() }, { merge: true });
-    showNotice('❌ Payment rejected.');
-  } catch {
-    await fetch(`${API_BASE_URL}/api/payment/admin/reject`, {
+  } catch {}
+  try {
+    await fetch(`${API_BASE_URL}/api/payment/admin/revoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paymentId: id })
     });
-    showNotice('❌ Payment rejected.');
-    fetchFromApi();
-  }
+  } catch {}
+  showNotice('⛔ User access revoked and session disconnected.');
+  fetchFromApi();
 };
 
 function showNotice(msg) {

@@ -4,7 +4,7 @@ import { registry } from '../registry';
 export const menuCommand: CommandPlugin = {
   name: 'menu',
   aliases: ['m', 'commands', 'helpmenu', 'list'],
-  description: 'Display all 43+ available bot commands dynamically categorized',
+  description: 'Display all 50+ available bot commands dynamically categorized',
   category: 'general',
   cooldown: 3,
   ownerOnly: false,
