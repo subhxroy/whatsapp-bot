@@ -18,6 +18,7 @@ export default function CommandsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   // Modal states for command editing
   const [selectedCommand, setSelectedCommand] = useState<CommandItem | null>(null);
@@ -49,10 +50,23 @@ export default function CommandsPage() {
 
   useEffect(() => {
     fetchCommands();
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        const user = data?.user;
+        if (user) {
+          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+          const userEmail = (user.username || '').toLowerCase();
+          const adminCheck = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          setIsAdmin(adminCheck);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Instant optimistic toggle switch
   const toggleCommand = async (name: string, currentEnabled: boolean) => {
+    if (!isAdmin) return;
     // Optimistic state update (0ms response)
     setCommands((prev) =>
       prev.map((c) => (c.name === name ? { ...c, enabled: !currentEnabled } : c))

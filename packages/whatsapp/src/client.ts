@@ -27,6 +27,7 @@ export class WhatsAppClient {
   private recentMessages: Map<string, proto.IWebMessageInfo> = new Map();
   private processedMsgIds: Set<string> = new Set();
   private sessionKey: string;
+  private userId: string | null = null;
   private lidToPnMap = new Map<string, string>();
   private pnToLidMap = new Map<string, string>();
 
@@ -36,8 +37,13 @@ export class WhatsAppClient {
   private static readonly MAX_CACHED_MESSAGES = 300;
   private static readonly SENDER_PN_CACHE_TTL_MS = 120_000;
 
-  constructor(sessionKey: string = 'default_session') {
+  constructor(sessionKey: string = 'default_session', userId?: string) {
     this.sessionKey = sessionKey;
+    this.userId = userId ?? (sessionKey.startsWith('user_') ? sessionKey.replace(/^user_/, '') : sessionKey);
+  }
+
+  public getUserId(): string | null {
+    return this.userId;
   }
 
   public registerLidMapping(lid?: string, pnJid?: string): void {

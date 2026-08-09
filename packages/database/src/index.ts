@@ -39,6 +39,7 @@ export interface CommandConfig {
 
 export interface AutoReply {
   id: string;
+  userId?: string | null;
   trigger: string;
   matchType: MatchType;
   specificNumber?: string | null;
@@ -80,6 +81,7 @@ export interface PaymentRequest {
 
 export interface ScheduledMessage {
   id: string;
+  userId?: string | null;
   targetNumber: string;
   targetJid: string;
   message: string;
@@ -472,23 +474,27 @@ export const db = {
     });
   },
 
-  async getAutoReplies(): Promise<AutoReply[]> {
+  async getAutoReplies(userId?: string, isOwnerOrAdmin?: boolean): Promise<AutoReply[]> {
     return withRetry(async () => {
       const snap = await autoReplies().get();
-      const list: AutoReply[] = snap.docs.map((doc) => {
+      let list: AutoReply[] = snap.docs.map((doc) => {
         const data = doc.data() as Omit<AutoReply, 'id'>;
-        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt), updatedAt: toDateString(data.updatedAt) };
+        return { ...data, id: doc.id, userId: data.userId ?? null, createdAt: toDateString(data.createdAt), updatedAt: toDateString(data.updatedAt) };
       });
+      if (userId && !isOwnerOrAdmin) {
+        list = list.filter((r) => r.userId === userId);
+      }
       return this.privateSortAutoReplies(list);
     });
   },
 
-  async getEnabledAutoReplies(): Promise<AutoReply[]> {
-    const all = await this.getAutoReplies();
+  async getEnabledAutoReplies(userId?: string): Promise<AutoReply[]> {
+    const all = await this.getAutoReplies(userId, false);
     return all.filter((r) => (r as any).enabled !== false && (r as any).enabled !== 'false');
   },
 
   async createAutoReply(data: {
+    userId?: string | null;
     trigger: string;
     matchType: MatchType;
     specificNumber?: string | null;
@@ -502,6 +508,7 @@ export const db = {
       const ref = autoReplies().doc();
       const rule: AutoReply = {
         id: ref.id,
+        userId: data.userId ?? null,
         trigger: data.trigger,
         matchType: data.matchType,
         specificNumber: data.specificNumber ?? null,
@@ -519,12 +526,17 @@ export const db = {
 
   async updateAutoReply(
     id: string,
-    data: Partial<Omit<AutoReply, 'id' | 'createdAt'>>
+    data: Partial<Omit<AutoReply, 'id' | 'createdAt'>>,
+    currentUserId?: string,
+    isOwnerOrAdmin?: boolean
   ): Promise<AutoReply | null> {
     return withRetry(async () => {
       const doc = await autoReplies().doc(id).get();
       if (!doc.exists) return null;
       const current = doc.data() as Omit<AutoReply, 'id'>;
+      if (!isOwnerOrAdmin && currentUserId && current.userId && current.userId !== currentUserId) {
+        return null;
+      }
       const updated: AutoReply = {
         ...current,
         ...data,
@@ -537,9 +549,16 @@ export const db = {
     });
   },
 
-  async deleteAutoReply(id: string): Promise<void> {
+  async deleteAutoReply(id: string, currentUserId?: string, isOwnerOrAdmin?: boolean): Promise<boolean> {
     return withRetry(async () => {
+      const doc = await autoReplies().doc(id).get();
+      if (!doc.exists) return false;
+      const current = doc.data() as Omit<AutoReply, 'id'>;
+      if (!isOwnerOrAdmin && currentUserId && current.userId && current.userId !== currentUserId) {
+        return false;
+      }
       await autoReplies().doc(id).delete();
+      return true;
     });
   },
 
@@ -662,6 +681,7 @@ export const db = {
 
   // ---------- Scheduled Messages & Birthday Wishes ----------
   async createScheduledMessage(data: {
+    userId?: string | null;
     targetNumber: string;
     targetJid: string;
     message: string;
@@ -674,6 +694,7 @@ export const db = {
       const ref = scheduledCol().doc();
       const record: ScheduledMessage = {
         id: ref.id,
+        userId: data.userId ?? null,
         targetNumber: data.targetNumber,
         targetJid: data.targetJid,
         message: data.message,
@@ -693,25 +714,35 @@ export const db = {
       const snap = await scheduledCol().where('status', '==', 'PENDING').get();
       return snap.docs.map((doc) => {
         const data = doc.data() as Omit<ScheduledMessage, 'id'>;
-        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+        return { ...data, id: doc.id, userId: data.userId ?? null, createdAt: toDateString(data.createdAt) };
       });
     });
   },
 
-  async getScheduledMessages(): Promise<ScheduledMessage[]> {
+  async getScheduledMessages(userId?: string, isOwnerOrAdmin?: boolean): Promise<ScheduledMessage[]> {
     return withRetry(async () => {
       const snap = await scheduledCol().get();
-      const list = snap.docs.map((doc) => {
+      let list = snap.docs.map((doc) => {
         const data = doc.data() as Omit<ScheduledMessage, 'id'>;
-        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+        return { ...data, id: doc.id, userId: data.userId ?? null, createdAt: toDateString(data.createdAt) };
       });
+      if (userId && !isOwnerOrAdmin) {
+        list = list.filter((m) => m.userId === userId || m.senderJid?.startsWith(userId));
+      }
       return list.sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
     });
   },
 
-  async deleteScheduledMessage(id: string): Promise<void> {
+  async deleteScheduledMessage(id: string, currentUserId?: string, isOwnerOrAdmin?: boolean): Promise<boolean> {
     return withRetry(async () => {
+      const doc = await scheduledCol().doc(id).get();
+      if (!doc.exists) return false;
+      const current = doc.data() as Omit<ScheduledMessage, 'id'>;
+      if (!isOwnerOrAdmin && currentUserId && current.userId && current.userId !== currentUserId) {
+        return false;
+      }
       await scheduledCol().doc(id).delete();
+      return true;
     });
   },
 

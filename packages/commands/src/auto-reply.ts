@@ -29,7 +29,7 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
   if (msg.fromMe) return false;
 
   const text = (msg.body || '').trim();
-  const rules = await db.getEnabledAutoReplies();
+  const rules = await db.getEnabledAutoReplies(client.getUserId() || undefined);
 
   console.log(`[CALDERA_DEBUG][AUTOREPLY] enabledRules=${rules.length} senderNumber=${msg.senderNumber} senderJid=${msg.senderJid} chatId=${msg.chatId} fromMe=${msg.fromMe} bodyLen=${text.length}`);
 

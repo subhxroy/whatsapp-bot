@@ -241,7 +241,7 @@ export default function AdminPortalPage() {
                       {new Date(req.createdAt).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
-                      {req.status === 'PENDING' ? (
+                      {req.status === 'PENDING' && (
                         <>
                           <button
                             onClick={() => handleApprove(req.id)}
@@ -258,10 +258,25 @@ export default function AdminPortalPage() {
                             <X className="h-3.5 w-3.5" /> Reject
                           </button>
                         </>
-                      ) : (
-                        <span className="text-[#070607]/40 text-[11px] font-bold uppercase tracking-wider">
-                          Status Locked ({req.status})
-                        </span>
+                      )}
+                      {req.status === 'APPROVED' && (
+                        <button
+                          onClick={() => handleReject(req.id)}
+                          disabled={actionId === req.id}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-[#fc5000]/15 border border-[#fc5000] px-4 py-2 text-xs font-bold text-[#fc5000] transition hover:bg-[#fc5000] hover:text-[#070607] disabled:opacity-50"
+                          title="Revoke user access and disconnect WhatsApp bot"
+                        >
+                          <X className="h-3.5 w-3.5" /> Revoke Access
+                        </button>
+                      )}
+                      {req.status === 'REJECTED' && (
+                        <button
+                          onClick={() => handleApprove(req.id)}
+                          disabled={actionId === req.id}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-[#fc5000] px-4 py-2 text-xs font-bold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Re-Approve Access
+                        </button>
                       )}
                     </td>
                   </tr>

@@ -13,7 +13,7 @@ export class SessionManager {
   getOrCreate(userId: string): WhatsAppClient {
     let client = this.sessions.get(userId);
     if (!client) {
-      client = new WhatsAppClient(`user_${userId}`);
+      client = new WhatsAppClient(`user_${userId}`, userId);
       const dispatcher = new CommandDispatcher(client);
       client.onMessage(async (msg) => {
         await dispatcher.handleMessage(msg);

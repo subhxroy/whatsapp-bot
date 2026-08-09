@@ -112,8 +112,8 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
     return reply.send({ message: 'Payment approved successfully', request: updated });
   });
 
-  // Admin Only: Reject a payment
-  fastify.post('/api/payment/admin/reject', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  // Admin Only: Reject or Revoke a payment
+  const handleRejectOrRevoke = async (request: any, reply: any) => {
     const user = request.user as { username?: string; email?: string; role?: string };
     const userIdentifier = user?.email || user?.username || '';
 
@@ -134,13 +134,24 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
       return reply.status(404).send({ error: 'Payment request not found' });
     }
 
+    // Immediately disconnect user's active WhatsApp session when access is revoked/rejected
+    const revokedUserId = updated.userEmail || updated.userId;
+    if (revokedUserId) {
+      sessionManager.disconnect(revokedUserId).catch((err: any) => {
+        console.error(`[Payment] Disconnect failed on access revoke for ${revokedUserId}:`, err.message);
+      });
+    }
+
     await db.createAuditLog({
-      action: 'PAYMENT_REJECTED',
+      action: 'PAYMENT_REVOKED',
       actor: userIdentifier,
-      details: `Rejected payment ${paymentId} for user ${updated.userEmail}`,
+      details: `Revoked access / rejected payment ${paymentId} for user ${updated.userEmail}`,
       ipAddress: request.ip,
     });
 
-    return reply.send({ message: 'Payment rejected', request: updated });
-  });
+    return reply.send({ message: 'User access revoked successfully', request: updated });
+  };
+
+  fastify.post('/api/payment/admin/reject', { preHandler: [fastify.authenticate] }, handleRejectOrRevoke);
+  fastify.post('/api/payment/admin/revoke', { preHandler: [fastify.authenticate] }, handleRejectOrRevoke);
 }

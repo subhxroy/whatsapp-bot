@@ -15,6 +15,14 @@ const executeCommandSchema = z.object({
   commandText: z.string().min(1),
 });
 
+const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+
+function checkAdmin(user: any): boolean {
+  if (!user) return false;
+  const identifier = (user.email || user.username || user.id || '').toLowerCase();
+  return EXEMPT_EMAILS.some((e) => e.toLowerCase() === identifier) || user.role === 'ADMIN' || user.role === 'OWNER';
+}
+
 export function registerCommandRoutes(fastify: FastifyInstance) {
   fastify.get('/api/commands', { onRequest: [fastify.authenticate] }, async () => {
     const defaultCmds = registry.getAllCommands();
@@ -47,6 +55,9 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
 
   fastify.put('/api/commands/:name', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
+    if (!checkAdmin(user)) {
+      return reply.status(403).send({ error: 'Access restricted to administrators' });
+    }
     const { name } = request.params as { name: string };
     const body = updateCommandSchema.parse(request.body);
 

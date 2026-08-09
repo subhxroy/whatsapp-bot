@@ -10,8 +10,22 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [isAdmin, setIsAdmin] = useState<boolean>(true);
 
   useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        const user = data?.user;
+        if (user) {
+          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+          const userEmail = (user.username || '').toLowerCase();
+          const adminCheck = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          setIsAdmin(adminCheck);
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/settings', { credentials: 'include' })
       .then((res) => {
         if (res.status === 401) {
@@ -162,14 +176,20 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex items-center gap-2 rounded-full bg-[#fc5000] px-8 py-4 text-base font-semibold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50"
-        >
-          <Save className="h-5 w-5" />
-          <span>{saving ? 'Saving Settings...' : 'Save Configuration'}</span>
-        </button>
+        {isAdmin ? (
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex items-center gap-2 rounded-full bg-[#fc5000] px-8 py-4 text-base font-semibold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50 shadow-md"
+          >
+            <Save className="h-5 w-5" />
+            <span>{saving ? 'Saving Settings...' : 'Save Configuration'}</span>
+          </button>
+        ) : (
+          <div className="rounded-[24px] bg-[#e2e2df] p-4 text-xs font-semibold text-[#070607]/70">
+            🔒 System parameters are managed by Administrators. Read-only mode active.
+          </div>
+        )}
       </form>
     </div>
   );

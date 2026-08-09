@@ -13,6 +13,14 @@ const updateBatchSettingSchema = z.object({
   settings: z.record(z.string(), z.string()),
 });
 
+const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+
+function checkAdmin(user: any): boolean {
+  if (!user) return false;
+  const identifier = (user.email || user.username || user.id || '').toLowerCase();
+  return EXEMPT_EMAILS.some((e) => e.toLowerCase() === identifier) || user.role === 'ADMIN' || user.role === 'OWNER';
+}
+
 export function registerSettingsRoutes(fastify: FastifyInstance) {
   fastify.get('/api/settings', { onRequest: [fastify.authenticate] }, async () => {
     const env = getEnv();
@@ -49,6 +57,9 @@ export function registerSettingsRoutes(fastify: FastifyInstance) {
 
   fastify.put('/api/settings', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
+    if (!checkAdmin(user)) {
+      return reply.status(403).send({ error: 'Access restricted to administrators' });
+    }
     const body = request.body as any;
 
     if (body && typeof body.settings === 'object' && body.settings !== null) {
