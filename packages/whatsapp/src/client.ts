@@ -4,6 +4,8 @@ import makeWASocket, {
   isJidGroup,
   proto,
   downloadMediaMessage,
+  USyncQuery,
+  USyncUser,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import { Boom } from '@hapi/boom';
@@ -236,11 +238,12 @@ export class WhatsAppClient {
                 hasQuotedMessage: !!contextInfo.quotedMessage,
               },
               senderPn: (msg as any).senderPn,
+              participantPn: (msg as any).participantPn,
             },
             '[CALDERA_DEBUG][INCOMING]'
           );
 
-          const normalized = this.normalizeMessage(msg);
+          const normalized = await this.normalizeMessage(msg);
           if (!normalized) continue;
 
           const env = getEnv();
@@ -420,7 +423,59 @@ export class WhatsAppClient {
     return 'unknown';
   }
 
-  private normalizeMessage(msg: proto.IWebMessageInfo): NormalizedMessage | null {
+  private async resolveLidViaBaileys(lidJid: string): Promise<string | null> {
+    const cleanLid = lidJid.split('@')[0].split(':')[0];
+    let pn: string | null = null;
+    let method = 'none';
+    let signalLidMappingExists = false;
+
+    try {
+      const repo = (this.socket as any)?.signalRepository;
+      const fn = repo?.lidMapping?.getPNForLID;
+      signalLidMappingExists = typeof fn === 'function';
+      if (signalLidMappingExists) {
+        const mapped = await fn.call(repo.lidMapping, lidJid);
+        if (mapped) {
+          pn = String(mapped).split('@')[0].split(':')[0].replace(/\D/g, '');
+          method = 'signalRepository.lidMapping';
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, lidJid }, 'BAILEYS_LID_LOOKUP signalRepository error');
+    }
+
+    if (!pn) {
+      try {
+        const socket = this.socket as any;
+        if (typeof socket?.executeUSyncQuery === 'function') {
+          const query = new USyncQuery().withContactProtocol().withUser(new USyncUser().withId(lidJid));
+          const result = await socket.executeUSyncQuery(query);
+          const entry = result?.list?.[0];
+          if (entry?.id && entry.id.includes('@s.whatsapp.net')) {
+            pn = entry.id.split('@')[0].split(':')[0].replace(/\D/g, '');
+            method = 'usync.contact';
+          }
+        }
+      } catch (err) {
+        logger.warn({ err: (err as Error).message, lidJid }, 'BAILEYS_LID_LOOKUP usync error');
+      }
+    }
+
+    logger.info(
+      {
+        lid: cleanLid,
+        lidJid,
+        pn: pn ?? null,
+        method,
+        success: !!pn,
+        signalLidMappingExists,
+      },
+      '[CALDERA_DEBUG][BAILEYS_LID_LOOKUP]'
+    );
+    return pn;
+  }
+
+  private async normalizeMessage(msg: proto.IWebMessageInfo): Promise<NormalizedMessage | null> {
     const key = msg.key;
     if (!key || !key.remoteJid) return null;
 
@@ -475,7 +530,14 @@ export class WhatsAppClient {
     let senderNumber = primaryJid.split('@')[0].split(':')[0];
 
     if (primaryJid.includes('@lid')) {
-      const mappedPn = this.getPnForLid(primaryJid);
+      let mappedPn = this.getPnForLid(primaryJid);
+      if (!mappedPn) {
+        const resolvedPn = await this.resolveLidViaBaileys(primaryJid);
+        if (resolvedPn) {
+          mappedPn = resolvedPn;
+          this.registerLidMapping(primaryJid, `${resolvedPn}@s.whatsapp.net`);
+        }
+      }
       logger.info(
         {
           incomingLid: primaryJid.split('@')[0],
