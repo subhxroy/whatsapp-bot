@@ -305,8 +305,23 @@ export class WhatsAppClient {
       mediaType = 'document';
     }
 
-    const senderJid = key.participant || key.remoteJid;
-    const senderNumber = senderJid.split('@')[0].split(':')[0];
+    // Resolve real Phone Number JID vs WhatsApp Privacy LID
+    const primaryJid = key.participant || key.remoteJid;
+    let phoneJid = primaryJid;
+
+    const altJid = (key as any).participantAlt || (key as any).remoteJidAlt;
+    if (altJid && altJid.includes('@s.whatsapp.net')) {
+      phoneJid = altJid;
+    } else if (primaryJid.includes('@lid')) {
+      if (key.remoteJid && key.remoteJid.includes('@s.whatsapp.net')) {
+        phoneJid = key.remoteJid;
+      } else if (key.participant && key.participant.includes('@s.whatsapp.net')) {
+        phoneJid = key.participant;
+      }
+    }
+
+    const senderJid = phoneJid;
+    const senderNumber = phoneJid.split('@')[0].split(':')[0];
 
     return {
       id: key.id || '',

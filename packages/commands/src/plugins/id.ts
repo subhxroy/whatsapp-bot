@@ -2,21 +2,28 @@ import { CommandPlugin } from '../types';
 
 export const idCommand: CommandPlugin = {
   name: 'id',
-  aliases: ['jid', 'chatid'],
-  description: 'Display chat and sender WhatsApp JID metadata',
+  aliases: ['jid', 'chatid', 'whoami'],
+  description: 'Display chat, sender phone number, and WhatsApp LID metadata',
   category: 'utility',
+  cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  cooldown: 2,
-  execute: async (ctx) => {
-    const isGroup = ctx.message.isGroup;
-    const text =
-      `🆔 *WHATSAPP IDENTIFIER METADATA*\n` +
-      `• *Chat JID:* \`${ctx.message.chatId}\`\n` +
-      `• *Sender JID:* \`${ctx.message.senderJid}\`\n` +
-      `• *Sender Number:* +${ctx.message.senderNumber}\n` +
+  handler: async ({ client, msg }) => {
+    const isGroup = msg.isGroup;
+    const rawKey = msg.rawMessage?.key as any;
+    const lidJid = (rawKey?.participant?.includes('@lid') ? rawKey.participant : null) ||
+                   (rawKey?.remoteJid?.includes('@lid') ? rawKey.remoteJid : null);
+
+    let text = `🆔 *WHATSAPP IDENTIFIER METADATA*\n\n` +
+      `• *Phone Number:* +${msg.senderNumber}\n` +
+      `• *Sender JID:* \`${msg.senderJid}\`\n` +
+      `• *Chat JID:* \`${msg.chatId}\`\n` +
       `• *Chat Type:* ${isGroup ? 'Group Chat 👥' : 'Direct Message 👤'}`;
 
-    await ctx.reply(text);
+    if (lidJid) {
+      text += `\n• *WhatsApp LID:* \`${lidJid}\` (Privacy Identifier)`;
+    }
+
+    await client.sendMessage(msg.chatId, text);
   },
 };
