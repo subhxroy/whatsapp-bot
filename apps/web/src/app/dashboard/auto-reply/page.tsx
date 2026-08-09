@@ -182,9 +182,9 @@ export default function AutoReplyPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#070607]/75 backdrop-blur-md p-4 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-xl rounded-[40px] bg-[#f7f6f2] p-6 sm:p-8 shadow-2xl space-y-6 text-[#070607] my-auto max-h-[88vh] overflow-y-auto custom-scrollbar border border-[#070607]/10">
-            <div className="flex items-center justify-between pb-2 border-b border-dotted border-[#070607]/20">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070607]/80 backdrop-blur-md p-3 sm:p-6 overflow-hidden">
+          <div className="relative w-full max-w-xl max-h-[90vh] rounded-[40px] bg-[#f7f6f2] shadow-2xl flex flex-col border border-[#070607]/15 overflow-hidden my-auto text-[#070607]">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-dotted border-[#070607]/20 flex-shrink-0 bg-[#f7f6f2]">
               <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">Create Auto-Reply Rule</h2>
               <button
                 type="button"
@@ -196,7 +196,7 @@ export default function AutoReplyPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               <div>
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
                   Trigger Keyword / Regex

@@ -270,6 +270,32 @@ export class WhatsAppClient {
     }
   }
 
+  private unwrapMessageContent(msgContent: proto.IMessage | null | undefined): proto.IMessage | null {
+    if (!msgContent) return null;
+    let current: any = msgContent;
+
+    while (current) {
+      if (current.ephemeralMessage?.message) {
+        current = current.ephemeralMessage.message;
+      } else if (current.viewOnceMessage?.message) {
+        current = current.viewOnceMessage.message;
+      } else if (current.viewOnceMessageV2?.message) {
+        current = current.viewOnceMessageV2.message;
+      } else if (current.viewOnceMessageV2Extension?.message) {
+        current = current.viewOnceMessageV2Extension.message;
+      } else if (current.documentWithCaptionMessage?.message) {
+        current = current.documentWithCaptionMessage.message;
+      } else if (current.deviceSentMessage?.message) {
+        current = current.deviceSentMessage.message;
+      } else if (current.editedMessage?.message?.protocolMessage?.editedMessage) {
+        current = current.editedMessage.message.protocolMessage.editedMessage;
+      } else {
+        break;
+      }
+    }
+    return current as proto.IMessage;
+  }
+
   private normalizeMessage(msg: proto.IWebMessageInfo): NormalizedMessage | null {
     const key = msg.key;
     if (!key || !key.remoteJid) return null;
@@ -277,19 +303,26 @@ export class WhatsAppClient {
     const messageContent = msg.message;
     if (!messageContent) return null;
 
-    const viewOnceMsg =
-      messageContent.viewOnceMessage?.message ||
-      messageContent.viewOnceMessageV2?.message ||
-      messageContent.viewOnceMessageV2Extension?.message;
+    const finalContent = this.unwrapMessageContent(messageContent);
+    if (!finalContent) return null;
 
-    const isViewOnce = !!viewOnceMsg;
-    const finalContent = viewOnceMsg || messageContent;
+    const isViewOnce =
+      !!messageContent.viewOnceMessage ||
+      !!messageContent.viewOnceMessageV2 ||
+      !!messageContent.viewOnceMessageV2Extension;
 
     let body =
       finalContent.conversation ||
       finalContent.extendedTextMessage?.text ||
       finalContent.imageMessage?.caption ||
       finalContent.videoMessage?.caption ||
+      finalContent.documentMessage?.caption ||
+      finalContent.buttonsResponseMessage?.selectedButtonId ||
+      finalContent.buttonsResponseMessage?.selectedDisplayText ||
+      finalContent.templateButtonReplyMessage?.selectedId ||
+      finalContent.templateButtonReplyMessage?.selectedDisplayText ||
+      finalContent.listResponseMessage?.singleSelectReply?.selectedRowId ||
+      finalContent.listResponseMessage?.title ||
       '';
 
     let hasMedia = false;

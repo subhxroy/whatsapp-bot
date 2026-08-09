@@ -485,7 +485,7 @@ export const db = {
 
   async getEnabledAutoReplies(): Promise<AutoReply[]> {
     const all = await this.getAutoReplies();
-    return all.filter((r) => r.enabled);
+    return all.filter((r) => (r as any).enabled !== false && (r as any).enabled !== 'false');
   },
 
   async createAutoReply(data: {
