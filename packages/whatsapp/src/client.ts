@@ -148,12 +148,19 @@ export class WhatsAppClient {
             if (first) this.processedMsgIds.delete(first);
           }
 
-          // Skip old history messages (older than 2 minutes) to ensure instant responses
-          const timestamp = typeof msg.messageTimestamp === 'number'
-            ? msg.messageTimestamp
-            : (msg.messageTimestamp as any)?.low;
-          if (timestamp && Date.now() / 1000 - timestamp > 120) {
-            continue;
+          // Skip old history sync messages (type === 'append') to ensure clean startup, but never drop live notify messages
+          if (type === 'append') {
+            let timestamp: number | undefined;
+            if (typeof msg.messageTimestamp === 'number') {
+              timestamp = msg.messageTimestamp;
+            } else if (typeof (msg.messageTimestamp as any)?.toNumber === 'function') {
+              timestamp = (msg.messageTimestamp as any).toNumber();
+            } else if (typeof (msg.messageTimestamp as any)?.low === 'number') {
+              timestamp = (msg.messageTimestamp as any).low;
+            }
+            if (timestamp && Date.now() / 1000 - timestamp > 300) {
+              continue;
+            }
           }
 
           this.cacheMessage(msg.key.id, msg);

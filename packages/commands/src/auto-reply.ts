@@ -25,11 +25,13 @@ function isPhoneMatch(target: string, candidate: string): boolean {
 }
 
 export async function processAutoReplies(client: WhatsAppClient, msg: NormalizedMessage): Promise<boolean> {
-  // Loop prevention: Never reply to bot's own messages
-  if (msg.fromMe || !msg.body) return false;
+  // Loop prevention: Never reply to bot's own outbound messages
+  if (msg.fromMe) return false;
 
-  const text = msg.body.trim();
+  const text = (msg.body || '').trim();
   const rules = await db.getEnabledAutoReplies();
+
+  if (rules.length === 0) return false;
 
   for (const rule of rules) {
     // Specific phone number filter check
@@ -47,7 +49,7 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
 
     if (rule.matchType === 'ANY' || trigger === '*') {
       matches = true;
-    } else {
+    } else if (text) {
       switch (rule.matchType) {
         case 'EXACT':
           matches = text.toLowerCase() === trigger.toLowerCase();
@@ -80,7 +82,7 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
         return false;
       }
 
-      console.log(`[AUTOREPLY] Rule ${rule.id} matched message "${text}" from ${cleanSender}. Sending auto-response.`);
+      console.log(`[AUTOREPLY] Rule ${rule.id} matched incoming message from ${cleanSender} (chatId: ${msg.chatId}). Sending auto-response: "${rule.response}"`);
       await client.sendMessage(msg.chatId, rule.response);
       return true;
     }
