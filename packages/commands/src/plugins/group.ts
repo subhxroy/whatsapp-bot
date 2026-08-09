@@ -8,18 +8,19 @@ export const groupCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 5,
-  handler: async ({ client, msg, args }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
     const action = args[0]?.toLowerCase();
     if (action === 'open') {
-      await client.sendMessage(msg.chatId, '🔓 Group chat has been opened for all members.');
+      await client.sendMessage(activeMsg.chatId, '🔓 Group chat has been opened for all members.');
     } else if (action === 'close') {
-      await client.sendMessage(msg.chatId, '🔒 Group chat has been closed. Only admins can send messages.');
+      await client.sendMessage(activeMsg.chatId, '🔒 Group chat has been closed. Only admins can send messages.');
     } else {
-      await client.sendMessage(msg.chatId, 'Usage: `.group <open|close>`');
+      await client.sendMessage(activeMsg.chatId, 'Usage: `.group <open|close>`');
     }
   },
 };
@@ -32,12 +33,13 @@ export const promoteCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 3,
-  handler: async ({ client, msg }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
-    await client.sendMessage(msg.chatId, '👑 Member promoted to admin successfully.');
+    await client.sendMessage(activeMsg.chatId, '👑 Member promoted to admin successfully.');
   },
 };
 
@@ -49,12 +51,13 @@ export const demoteCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 3,
-  handler: async ({ client, msg }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
-    await client.sendMessage(msg.chatId, '👤 Admin demoted to member successfully.');
+    await client.sendMessage(activeMsg.chatId, '👤 Admin demoted to member successfully.');
   },
 };
 
@@ -66,12 +69,13 @@ export const kickCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 3,
-  handler: async ({ client, msg }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
-    await client.sendMessage(msg.chatId, '🚪 Member removed from group.');
+    await client.sendMessage(activeMsg.chatId, '🚪 Member removed from group.');
   },
 };
 
@@ -83,13 +87,14 @@ export const tagAllCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 10,
-  handler: async ({ client, msg, args }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
     const announcement = args.join(' ') || 'Attention all group members!';
-    await client.sendMessage(msg.chatId, `📢 *Group Announcement:*\n${announcement}`);
+    await client.sendMessage(activeMsg.chatId, `📢 *Group Announcement:*\n${announcement}`);
   },
 };
 
@@ -101,13 +106,14 @@ export const hidetagCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 10,
-  handler: async ({ client, msg, args }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
     const text = args.join(' ') || '🔔 Group Broadcast Notification';
-    await client.sendMessage(msg.chatId, `🔔 *Hidden Tag Broadcast:*\n\n${text}`);
+    await client.sendMessage(activeMsg.chatId, `🔔 *Hidden Tag Broadcast:*\n\n${text}`);
   },
 };
 
@@ -119,15 +125,16 @@ export const groupInfoCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 3,
-  handler: async ({ client, msg }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
     await client.sendMessage(
-      msg.chatId,
+      activeMsg.chatId,
       `👥 *Group Information:*\n\n` +
-      `• *Chat JID:* ${msg.chatId}\n` +
+      `• *Chat JID:* ${activeMsg.chatId}\n` +
       `• *Type:* WhatsApp Group Chat\n` +
       `• *Bot Status:* Active & Listening`
     );
@@ -142,11 +149,12 @@ export const linkCommand: CommandPlugin = {
   ownerOnly: false,
   enabled: true,
   cooldown: 3,
-  handler: async ({ client, msg }) => {
-    if (!msg.isGroup) {
-      await client.sendMessage(msg.chatId, '❌ This command can only be used in group chats.');
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    if (!activeMsg.isGroup) {
+      await client.sendMessage(activeMsg.chatId, '❌ This command can only be used in group chats.');
       return;
     }
-    await client.sendMessage(msg.chatId, `🔗 *Group Invite Link:* https://chat.whatsapp.com/sample-group-invite-code`);
+    await client.sendMessage(activeMsg.chatId, `🔗 *Group Invite Link:* https://chat.whatsapp.com/sample-group-invite-code`);
   },
 };

@@ -4,6 +4,7 @@ import { Role } from '@private-md-bot/security';
 export interface CommandContext {
   client: WhatsAppClient;
   message: NormalizedMessage;
+  msg?: NormalizedMessage;
   args: string[];
   prefix: string;
   callerRole: Role;
@@ -24,4 +25,6 @@ export interface CommandPlugin {
   enabled: boolean;
   cooldown: number; // in seconds
   execute: (ctx: CommandContext) => Promise<void>;
+  handler?: (ctx: CommandContext) => Promise<void>;
 }
+

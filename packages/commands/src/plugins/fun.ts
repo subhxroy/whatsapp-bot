@@ -8,7 +8,8 @@ export const rollCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     let max = 6;
     if (args[0] && args[0].toLowerCase().startsWith('d')) {
       max = parseInt(args[0].slice(1), 10) || 6;
@@ -16,7 +17,7 @@ export const rollCommand: CommandPlugin = {
       max = parseInt(args[0], 10) || 6;
     }
     const result = Math.floor(Math.random() * max) + 1;
-    await client.sendMessage(msg.chatId, `🎲 *Dice Roll (1-${max}):* You rolled a *${result}*!`);
+    await client.sendMessage(activeMsg.chatId, `🎲 *Dice Roll (1-${max}):* You rolled a *${result}*!`);
   },
 };
 
@@ -28,9 +29,10 @@ export const flipCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const outcome = Math.random() < 0.5 ? 'HEADS 🪙' : 'TAILS 🪙';
-    await client.sendMessage(msg.chatId, `🪙 *Coin Flip:* Result is *${outcome}*!`);
+    await client.sendMessage(activeMsg.chatId, `🪙 *Coin Flip:* Result is *${outcome}*!`);
   },
 };
 
@@ -42,7 +44,8 @@ export const quoteCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const quotes = [
       { q: "The secret of getting ahead is getting started.", a: "Mark Twain" },
       { q: "It always seems impossible until it's done.", a: "Nelson Mandela" },
@@ -51,7 +54,7 @@ export const quoteCommand: CommandPlugin = {
       { q: "Action is the foundational key to all success.", a: "Pablo Picasso" }
     ];
     const item = quotes[Math.floor(Math.random() * quotes.length)];
-    await client.sendMessage(msg.chatId, `💬 "${item.q}"\n\n— *${item.a}*`);
+    await client.sendMessage(activeMsg.chatId, `💬 "${item.q}"\n\n— *${item.a}*`);
   },
 };
 
@@ -63,7 +66,8 @@ export const jokeCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const jokes = [
       "Why don't scientists trust atoms? Because they make up everything!",
       "Why did the developer quit his job? Because he didn't get arrays!",
@@ -72,7 +76,7 @@ export const jokeCommand: CommandPlugin = {
       "What is a programmer's favorite place to hang out? Foo Bar!"
     ];
     const joke = jokes[Math.floor(Math.random() * jokes.length)];
-    await client.sendMessage(msg.chatId, `😂 *Joke of the day:*\n\n${joke}`);
+    await client.sendMessage(activeMsg.chatId, `😂 *Joke of the day:*\n\n${joke}`);
   },
 };
 
@@ -84,7 +88,8 @@ export const triviaCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const triviaList = [
       { q: "What is the capital city of Japan?", a: "Tokyo" },
       { q: "Which planet is known as the Red Planet?", a: "Mars" },
@@ -93,7 +98,7 @@ export const triviaCommand: CommandPlugin = {
       { q: "What is the largest ocean on Earth?", a: "Pacific Ocean" }
     ];
     const t = triviaList[Math.floor(Math.random() * triviaList.length)];
-    await client.sendMessage(msg.chatId, `🧠 *Trivia Question:*\n\n${t.q}\n\n*Answer:* ||${t.a}||`);
+    await client.sendMessage(activeMsg.chatId, `🧠 *Trivia Question:*\n\n${t.q}\n\n*Answer:* ||${t.a}||`);
   },
 };
 
@@ -105,7 +110,8 @@ export const factCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const facts = [
       "Honey never spoils. Archaeologists have found 3,000-year-old honey in Egyptian tombs that is still edible!",
       "Bananas are curved because they grow towards the sun against gravity.",
@@ -114,7 +120,7 @@ export const factCommand: CommandPlugin = {
       "Wombat poop is cube-shaped to stop it from rolling away!"
     ];
     const fact = facts[Math.floor(Math.random() * facts.length)];
-    await client.sendMessage(msg.chatId, `💡 *Fun Fact:*\n\n${fact}`);
+    await client.sendMessage(activeMsg.chatId, `💡 *Fun Fact:*\n\n${fact}`);
   },
 };
 
@@ -126,9 +132,10 @@ export const eightBallCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     if (!args || args.length === 0) {
-      await client.sendMessage(msg.chatId, '🎱 Usage: `.8ball <question>` (e.g. `.8ball Will today be a great day?`)');
+      await client.sendMessage(activeMsg.chatId, '🎱 Usage: `.8ball <question>` (e.g. `.8ball Will today be a great day?`)');
       return;
     }
 
@@ -146,6 +153,6 @@ export const eightBallCommand: CommandPlugin = {
     ];
 
     const ans = responses[Math.floor(Math.random() * responses.length)];
-    await client.sendMessage(msg.chatId, `🎱 *Magic 8-Ball says:* "${ans}"`);
+    await client.sendMessage(activeMsg.chatId, `🎱 *Magic 8-Ball says:* "${ans}"`);
   },
 };

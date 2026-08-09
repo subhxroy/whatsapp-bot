@@ -9,7 +9,8 @@ export const systemCommand: CommandPlugin = {
   cooldown: 5,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const freeMem = (os.freemem() / (1024 * 1024)).toFixed(0);
     const totalMem = (os.totalmem() / (1024 * 1024)).toFixed(0);
     const usedMem = (Number(totalMem) - Number(freeMem)).toFixed(0);
@@ -26,7 +27,7 @@ export const systemCommand: CommandPlugin = {
       `• *CPU Model:* ${cpuModel} (${cpus.length} cores)\n` +
       `• *Process PID:* ${process.pid}`;
 
-    await client.sendMessage(msg.chatId, report);
+    await client.sendMessage(activeMsg.chatId, report);
   },
 };
 
@@ -38,19 +39,20 @@ export const evalCommand: CommandPlugin = {
   cooldown: 0,
   ownerOnly: true,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     const code = args.join(' ').trim();
     if (!code) {
-      await client.sendMessage(msg.chatId, '⚠️ Usage: `.eval <code>`');
+      await client.sendMessage(activeMsg.chatId, '⚠️ Usage: `.eval <code>`');
       return;
     }
 
     try {
       const result = await eval(`(async () => { ${code} })()`);
       const output = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
-      await client.sendMessage(msg.chatId, `⚡ *Eval Result:*\n\`\`\`${output}\`\`\``);
+      await client.sendMessage(activeMsg.chatId, `⚡ *Eval Result:*\n\`\`\`${output}\`\`\``);
     } catch (err: any) {
-      await client.sendMessage(msg.chatId, `❌ *Eval Error:*\n\`\`\`${err.message || String(err)}\`\`\``);
+      await client.sendMessage(activeMsg.chatId, `❌ *Eval Error:*\n\`\`\`${err.message || String(err)}\`\`\``);
     }
   },
 };
@@ -63,12 +65,13 @@ export const restartCommand: CommandPlugin = {
   cooldown: 10,
   ownerOnly: true,
   enabled: true,
-  handler: async ({ client, msg }) => {
-    await client.sendMessage(msg.chatId, '🔄 *Restarting WhatsApp bot session...*');
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    await client.sendMessage(activeMsg.chatId, '🔄 *Restarting WhatsApp bot session...*');
     try {
       await client.reconnect();
     } catch (err: any) {
-      await client.sendMessage(msg.chatId, `❌ Restart error: ${err.message}`);
+      await client.sendMessage(activeMsg.chatId, `❌ Restart error: ${err.message}`);
     }
   },
 };

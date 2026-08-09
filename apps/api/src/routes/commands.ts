@@ -115,8 +115,13 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
     };
 
     try {
-      await plugin.handler({
+      const runFn = plugin.execute || plugin.handler;
+      if (typeof runFn !== 'function') {
+        throw new Error(`Command .${plugin.name} has no executable handler.`);
+      }
+      await runFn({
         client: mockClient,
+        message: mockMsg,
         msg: mockMsg,
         args,
         commandName: plugin.name,

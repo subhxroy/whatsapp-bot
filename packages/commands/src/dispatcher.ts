@@ -63,6 +63,7 @@ export class CommandDispatcher {
       const ctx = {
         client: this.client,
         message: msg,
+        msg,
         args,
         prefix,
         callerRole,
@@ -75,7 +76,12 @@ export class CommandDispatcher {
       };
 
       try {
-        await plugin.execute(ctx);
+        const runFn = plugin.execute || plugin.handler;
+        if (typeof runFn === 'function') {
+          await runFn(ctx);
+        } else {
+          throw new Error(`Command .${plugin.name} has no executable handler.`);
+        }
       } catch (err: any) {
         console.error(`Error running command ${plugin.name}:`, err);
         await this.client.sendMessage(msg.chatId, `❌ Command execution failed: ${err.message || 'Unknown error'}`);

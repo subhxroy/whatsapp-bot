@@ -8,22 +8,23 @@ export const idCommand: CommandPlugin = {
   cooldown: 2,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
-    const isGroup = msg.isGroup;
-    const rawKey = msg.rawMessage?.key as any;
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
+    const isGroup = activeMsg.isGroup;
+    const rawKey = activeMsg.rawMessage?.key as any;
     const lidJid = (rawKey?.participant?.includes('@lid') ? rawKey.participant : null) ||
                    (rawKey?.remoteJid?.includes('@lid') ? rawKey.remoteJid : null);
 
     let text = `🆔 *WHATSAPP IDENTIFIER METADATA*\n\n` +
-      `• *Phone Number:* +${msg.senderNumber}\n` +
-      `• *Sender JID:* \`${msg.senderJid}\`\n` +
-      `• *Chat JID:* \`${msg.chatId}\`\n` +
+      `• *Phone Number:* +${activeMsg.senderNumber}\n` +
+      `• *Sender JID:* \`${activeMsg.senderJid}\`\n` +
+      `• *Chat JID:* \`${activeMsg.chatId}\`\n` +
       `• *Chat Type:* ${isGroup ? 'Group Chat 👥' : 'Direct Message 👤'}`;
 
     if (lidJid) {
       text += `\n• *WhatsApp LID:* \`${lidJid}\` (Privacy Identifier)`;
     }
 
-    await client.sendMessage(msg.chatId, text);
+    await client.sendMessage(activeMsg.chatId, text);
   },
 };

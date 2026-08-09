@@ -8,16 +8,17 @@ export const translateCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     if (!args || args.length === 0) {
-      await client.sendMessage(msg.chatId, '⚠️ Usage: `.translate <target_lang> <text>` (e.g. `.tr es Hello world`)');
+      await client.sendMessage(activeMsg.chatId, '⚠️ Usage: `.translate <target_lang> <text>` (e.g. `.tr es Hello world`)');
       return;
     }
     const targetLang = args[0].length === 2 ? args[0] : 'en';
     const textToTrans = args[0].length === 2 ? args.slice(1).join(' ') : args.join(' ');
 
     if (!textToTrans) {
-      await client.sendMessage(msg.chatId, '⚠️ Please provide text to translate.');
+      await client.sendMessage(activeMsg.chatId, '⚠️ Please provide text to translate.');
       return;
     }
 
@@ -28,11 +29,11 @@ export const translateCommand: CommandPlugin = {
       const translatedText = data[0].map((item: any) => item[0]).join('');
 
       await client.sendMessage(
-        msg.chatId,
+        activeMsg.chatId,
         `🌐 *Translation (${targetLang.toUpperCase()}):*\n\n${translatedText}`
       );
     } catch {
-      await client.sendMessage(msg.chatId, '❌ Translation failed. Please check the language code.');
+      await client.sendMessage(activeMsg.chatId, '❌ Translation failed. Please check the language code.');
     }
   },
 };
@@ -45,7 +46,8 @@ export const weatherCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     const city = args.join(' ').trim() || 'London';
     try {
       const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
@@ -67,9 +69,9 @@ export const weatherCommand: CommandPlugin = {
         `• *Humidity:* ${humidity}%\n` +
         `• *Wind Speed:* ${windSpeed} km/h`;
 
-      await client.sendMessage(msg.chatId, report);
+      await client.sendMessage(activeMsg.chatId, report);
     } catch {
-      await client.sendMessage(msg.chatId, `🌤️ *Weather for ${city}:* Clear 26°C, Humidity 55%, Wind 12 km/h`);
+      await client.sendMessage(activeMsg.chatId, `🌤️ *Weather for ${city}:* Clear 26°C, Humidity 55%, Wind 12 km/h`);
     }
   },
 };
@@ -82,10 +84,11 @@ export const dictCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     const word = args[0]?.trim();
     if (!word) {
-      await client.sendMessage(msg.chatId, '📖 Usage: `.dict <word>` (e.g. `.dict ephemeral`)');
+      await client.sendMessage(activeMsg.chatId, '📖 Usage: `.dict <word>` (e.g. `.dict ephemeral`)');
       return;
     }
 
@@ -102,9 +105,9 @@ export const dictCommand: CommandPlugin = {
         `• *Definition:* ${definition}`;
       if (example) reply += `\n• *Example:* "${example}"`;
 
-      await client.sendMessage(msg.chatId, reply);
+      await client.sendMessage(activeMsg.chatId, reply);
     } catch {
-      await client.sendMessage(msg.chatId, `📖 *Dictionary:* Word '${word}' not found.`);
+      await client.sendMessage(activeMsg.chatId, `📖 *Dictionary:* Word '${word}' not found.`);
     }
   },
 };
@@ -117,19 +120,20 @@ export const shortenCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     const targetUrl = args[0]?.trim();
     if (!targetUrl || !targetUrl.startsWith('http')) {
-      await client.sendMessage(msg.chatId, '🔗 Usage: `.shorten <http_url>` (e.g. `.shorten https://google.com`)');
+      await client.sendMessage(activeMsg.chatId, '🔗 Usage: `.shorten <http_url>` (e.g. `.shorten https://google.com`)');
       return;
     }
 
     try {
       const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(targetUrl)}`);
       const shortUrl = await res.text();
-      await client.sendMessage(msg.chatId, `🔗 *Shortened Link:*\n${shortUrl}`);
+      await client.sendMessage(activeMsg.chatId, `🔗 *Shortened Link:*\n${shortUrl}`);
     } catch {
-      await client.sendMessage(msg.chatId, '❌ Failed to shorten URL.');
+      await client.sendMessage(activeMsg.chatId, '❌ Failed to shorten URL.');
     }
   },
 };
@@ -142,14 +146,15 @@ export const qrcodeCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg, args }) => {
+  execute: async ({ client, msg, message = msg, args }: any) => {
+    const activeMsg = msg || message;
     const text = args.join(' ').trim();
     if (!text) {
-      await client.sendMessage(msg.chatId, '📱 Usage: `.qrcode <text or link>`');
+      await client.sendMessage(activeMsg.chatId, '📱 Usage: `.qrcode <text or link>`');
       return;
     }
 
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(text)}`;
-    await client.sendMessage(msg.chatId, `📱 *QR Code Generated for:* "${text}"\n${qrUrl}`);
+    await client.sendMessage(activeMsg.chatId, `📱 *QR Code Generated for:* "${text}"\n${qrUrl}`);
   },
 };

@@ -9,7 +9,8 @@ export const menuCommand: CommandPlugin = {
   cooldown: 3,
   ownerOnly: false,
   enabled: true,
-  handler: async ({ client, msg }) => {
+  execute: async ({ client, msg, message = msg }: any) => {
+    const activeMsg = msg || message;
     const commands = registry.getAllCommands();
     const categories: Record<string, CommandPlugin[]> = {};
 
@@ -52,6 +53,6 @@ export const menuCommand: CommandPlugin = {
     text += `━━━━━━━━━━━━━━━━━━━━━\n`;
     text += `💡 *Tip:* Use \`.ping\` to check latency or \`.system\` for server diagnostics.`;
 
-    await client.sendMessage(msg.chatId, text);
+    await client.sendMessage(activeMsg.chatId, text);
   },
 };
