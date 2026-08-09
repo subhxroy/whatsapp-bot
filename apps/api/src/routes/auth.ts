@@ -165,9 +165,6 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
     return { success: true, user: { id: user.id, username: user.username, role: user.role }, token };
   });
 
-    return { success: true, user: { id: user.id, username: user.username, role: user.role }, token };
-  });
-
   // Logout
   fastify.post('/api/auth/logout', async (request, reply) => {
     reply.clearCookie('token', { path: '/' });
