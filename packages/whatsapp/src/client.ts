@@ -64,6 +64,78 @@ export class WhatsAppClient {
     return this.pnToLidMap.get(cleanPn);
   }
 
+  /**
+   * Phase 1 DIAGNOSTIC ONLY. Tests whether the custom <lid> USync protocol
+   * (the mechanism Baileys v7 uses for PN -> LID resolution) is servable by
+   * WhatsApp servers through the existing 6.17.16 socket. Does NOT alter any
+   * production matching or sending behavior.
+   */
+  public async diagnosePnToLid(pn: string): Promise<{
+    pn: string;
+    lid: string | null;
+    success: boolean;
+    method: string;
+    rawResponseSummary: string;
+  } | null> {
+    if (!this.socket) return null;
+    const cleanPn = String(pn).replace(/\D/g, '');
+    if (!cleanPn) return null;
+    const pnJid = `${cleanPn}@s.whatsapp.net`;
+
+    const out: { pn: string; lid: string | null; success: boolean; method: string; rawResponseSummary: string } = {
+      pn: cleanPn,
+      lid: null,
+      success: false,
+      method: 'usync.lid-protocol',
+      rawResponseSummary: 'not-run',
+    };
+
+    try {
+      const lidProtocol = {
+        name: 'lid',
+        getQueryElement: () => ({ tag: 'lid', attrs: {} }),
+        getUserElement: (user: any) => (user && user.lid ? { tag: 'lid', attrs: { jid: user.lid } } : null),
+        parser: (node: any) => (node && node.tag === 'lid' ? node.attrs?.val ?? null : null),
+      };
+
+      const query = new USyncQuery().withUser(new USyncUser().withLid(pnJid));
+      (query as any).protocols.push(lidProtocol);
+
+      const socket = this.socket as any;
+      const raw = await socket.executeUSyncQuery(query);
+      out.rawResponseSummary = this.safeSummarizeUsync(raw);
+
+      const entry = raw?.list?.[0];
+      const lidVal = entry?.lid ?? entry?.id ?? null;
+      if (lidVal && String(lidVal).includes('lid')) {
+        out.lid = String(lidVal).split('@')[0].split(':')[0];
+        out.success = true;
+      }
+    } catch (err) {
+      out.method = 'usync.lid-protocol:error';
+      out.rawResponseSummary = `error:${(err as Error)?.message ?? 'unknown'}`.slice(0, 300);
+    }
+
+    return out;
+  }
+
+  private safeSummarizeUsync(raw: any): string {
+    try {
+      if (!raw) return 'null';
+      const list = Array.isArray(raw.list)
+        ? raw.list.slice(0, 5).map((e: any) => {
+            const o: Record<string, unknown> = { id: e?.id ?? null };
+            if (e?.lid !== undefined) o.lid = e.lid;
+            if (e?.contact !== undefined) o.contact = e.contact;
+            return o;
+          })
+        : [];
+      return JSON.stringify({ list, sideList: Array.isArray(raw.sideList) ? raw.sideList.length : 0 }).slice(0, 300);
+    } catch {
+      return 'summarize-error';
+    }
+  }
+
   public getStatus(): ConnectionStatus {
     return this.status;
   }
@@ -124,6 +196,45 @@ export class WhatsAppClient {
       });
 
       this.socket.ev.on('creds.update', saveCreds);
+
+      // Phase 1 DIAGNOSTIC ONLY: inspect raw incoming CB:message node attributes
+      // for LID/PN identity fields. Read-only; never modifies node or behavior.
+      const rawWs = (this.socket as any)?.ws;
+      if (rawWs && typeof rawWs.on === 'function') {
+        rawWs.on('CB:message', (node: any) => {
+          try {
+            const attrs = node?.attrs ?? {};
+            if (!String(attrs.from || '').includes('@lid')) return;
+            const childJids: Record<string, string> = {};
+            if (Array.isArray(node?.content)) {
+              for (const child of node.content) {
+                if (child?.tag && child.attrs && typeof child.attrs.jid === 'string') {
+                  childJids[child.tag] = child.attrs.jid;
+                }
+              }
+            }
+            logger.info(
+              {
+                from: attrs.from,
+                participant: attrs.participant,
+                sender_pn: attrs.sender_pn,
+                participant_pn: attrs.participant_pn,
+                participantPn: attrs.participantPn,
+                phoneNumber: attrs.phoneNumber,
+                jid: attrs.jid,
+                lid: attrs.lid,
+                id: attrs.id,
+                t: attrs.t,
+                type: attrs.type,
+                childJids,
+              },
+              '[CALDERA_DEBUG][CB:MESSAGE]'
+            );
+          } catch (err) {
+            logger.warn({ err: (err as Error)?.message }, '[CALDERA_DEBUG][CB:MESSAGE] error');
+          }
+        });
+      }
 
       this.socket.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;

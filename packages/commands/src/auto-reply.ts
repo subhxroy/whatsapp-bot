@@ -82,6 +82,22 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
     if (!phoneMatch || !triggerMatch) {
       if (!phoneMatch) {
         console.log(`[AUTOREPLY] Rule ${rule.id} target phone filter (${rule.specificNumber}) did not match candidates: ${candidates.join(', ')}`);
+        if (rule.specificNumber && rule.specificNumber.trim() && msg.chatId.includes('@lid')) {
+          try {
+            const diag = await client.diagnosePnToLid(rule.specificNumber);
+            if (diag) {
+              console.log(
+                `[CALDERA_DEBUG][PN_TO_LID_LOOKUP] pn=${diag.pn} lid=${diag.lid ?? 'null'} success=${diag.success} method=${diag.method} rawResponseSummary=${diag.rawResponseSummary}`
+              );
+            } else {
+              console.log(`[CALDERA_DEBUG][PN_TO_LID_LOOKUP] pn=${rule.specificNumber} lid=null success=false method=client-not-ready rawResponseSummary=null`);
+            }
+          } catch (err) {
+            console.log(
+              `[CALDERA_DEBUG][PN_TO_LID_LOOKUP] pn=${rule.specificNumber} lid=null success=false method=error rawResponseSummary=${(err as Error)?.message ?? 'unknown'}`
+            );
+          }
+        }
       }
       continue;
     }
