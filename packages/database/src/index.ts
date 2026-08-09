@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { initializeApp, cert, getApps, getApp } from 'firebase-admin/app';
+import { initializeApp, cert, getApps, getApp, deleteApp } from 'firebase-admin/app';
 import { getFirestore, Firestore, Timestamp } from 'firebase-admin/firestore';
 
 export type MatchType = 'EXACT' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | 'REGEX' | 'ANY';
@@ -92,8 +92,15 @@ export interface ScheduledMessage {
 
 let cachedDb: Firestore | null = null;
 
-export function resetDb(): void {
+export async function resetDb(): Promise<void> {
   cachedDb = null;
+  if (getApps().length > 0) {
+    try {
+      await deleteApp(getApp());
+    } catch {
+      // ignore app cleanup errors
+    }
+  }
 }
 
 export function getDb(): Firestore {
@@ -138,7 +145,18 @@ export function getDb(): Firestore {
     }
 
     if (resolvedContent) {
-      app = initializeApp({ credential: cert(JSON.parse(resolvedContent)) });
+      let parsed: any;
+      try {
+        parsed = typeof resolvedContent === 'string' ? JSON.parse(resolvedContent) : resolvedContent;
+      } catch (err: any) {
+        throw new Error(`Failed to parse Firebase service account JSON: ${err?.message}`);
+      }
+
+      if (parsed && typeof parsed.private_key === 'string') {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+      }
+
+      app = initializeApp({ credential: cert(parsed) });
     } else if (projectId) {
       app = initializeApp({ projectId });
     } else {
@@ -169,25 +187,34 @@ function toDateString(value: unknown): string {
 }
 
 function collection(name: string) {
-  try {
-    return getDb().collection(name);
-  } catch (err: any) {
-    if (err?.message?.includes('closing') || err?.message?.includes('closed')) {
-      cachedDb = null;
-      return getDb().collection(name);
-    }
-    throw err;
-  }
+  return getDb().collection(name);
 }
+
+const CLOSED_ERROR_PATTERNS = [
+  'closing',
+  'closed',
+  'hidden',
+  'unavailable',
+  'deadline_exceeded',
+  'not_found',
+  'goaway',
+  'rst_stream',
+  'channel shutdown',
+  'service unavailable',
+  'connection reset',
+  'socket hang up',
+  'econnreset',
+];
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err: any) {
-    const msg = err?.message || String(err);
-    if (msg.includes('closing') || msg.includes('closed') || msg.includes('hidden')) {
-      console.warn('⚠️ Firestore instance closing/hidden detected — re-initializing DB instance...');
-      cachedDb = null;
+    const msg = (err?.message || String(err)).toLowerCase();
+    const isClosedError = CLOSED_ERROR_PATTERNS.some((pattern) => msg.includes(pattern));
+    if (isClosedError) {
+      console.warn('⚠️ Firestore connection error detected — resetting app & DB instance...', err?.message);
+      await resetDb();
       return await fn();
     }
     throw err;
@@ -313,69 +340,85 @@ export const db = {
   },
 
   async setUserGoogleUid(username: string, googleUid: string): Promise<void> {
-    await users().doc(username).set({ googleUid }, { merge: true });
+    return withRetry(async () => {
+      await users().doc(username).set({ googleUid }, { merge: true });
+    });
   },
 
   // ---------- WhatsApp Sessions ----------
   async getSession(sessionKey: string): Promise<{ encryptedData: string; updatedAt: string } | null> {
-    const doc = await sessions().doc(sessionKey).get();
-    if (!doc.exists) return null;
-    const data = doc.data() as { encryptedData: string; updatedAt?: string };
-    return { encryptedData: data.encryptedData, updatedAt: toDateString(data.updatedAt) };
+    return withRetry(async () => {
+      const doc = await sessions().doc(sessionKey).get();
+      if (!doc.exists) return null;
+      const data = doc.data() as { encryptedData: string; updatedAt?: string };
+      return { encryptedData: data.encryptedData, updatedAt: toDateString(data.updatedAt) };
+    });
   },
 
   async upsertSession(sessionKey: string, encryptedData: string): Promise<void> {
-    await sessions().doc(sessionKey).set(
-      {
-        sessionKey,
-        encryptedData,
-        updatedAt: nowIso(),
-      },
-      { merge: true }
-    );
+    return withRetry(async () => {
+      await sessions().doc(sessionKey).set(
+        {
+          sessionKey,
+          encryptedData,
+          updatedAt: nowIso(),
+        },
+        { merge: true }
+      );
+    });
   },
 
   async deleteSession(sessionKey: string): Promise<void> {
-    await sessions().doc(sessionKey).delete();
+    return withRetry(async () => {
+      await sessions().doc(sessionKey).delete();
+    });
   },
 
   // ---------- Settings ----------
   async getSettings(): Promise<Setting[]> {
-    const snap = await settingsCol().get();
-    const items: Setting[] = snap.docs.map((doc) => {
-      const data = doc.data() as Omit<Setting, 'id'>;
-      return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+    return withRetry(async () => {
+      const snap = await settingsCol().get();
+      const items: Setting[] = snap.docs.map((doc) => {
+        const data = doc.data() as Omit<Setting, 'id'>;
+        return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+      });
+      return items.sort((a, b) => a.key.localeCompare(b.key));
     });
-    return items.sort((a, b) => a.key.localeCompare(b.key));
   },
 
   async getSetting(key: string): Promise<Setting | null> {
-    const doc = await settingsCol().doc(key).get();
-    if (!doc.exists) return null;
-    const data = doc.data() as Omit<Setting, 'id'>;
-    return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+    return withRetry(async () => {
+      const doc = await settingsCol().doc(key).get();
+      if (!doc.exists) return null;
+      const data = doc.data() as Omit<Setting, 'id'>;
+      return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+    });
   },
 
   async upsertSetting(data: { key: string; value: string; description?: string }): Promise<Setting> {
-    const now = nowIso();
-    const current = await this.getSetting(data.key);
-    const setting: Setting = {
-      id: data.key,
-      key: data.key,
-      value: data.value,
-      description: data.description ?? current?.description ?? null,
-      updatedAt: now,
-    };
-    await settingsCol().doc(data.key).set(setting, { merge: true });
-    return setting;
+    return withRetry(async () => {
+      const now = nowIso();
+      const current = await this.getSetting(data.key);
+      const setting: Setting = {
+        id: data.key,
+        key: data.key,
+        value: data.value,
+        description: data.description ?? current?.description ?? null,
+        updatedAt: now,
+      };
+      await settingsCol().doc(data.key).set(setting, { merge: true });
+      return setting;
+    });
   },
 
   // ---------- Command Configs ----------
   async getCommandConfigs(): Promise<CommandConfig[]> {
-    const snap = await commandConfigs().get();
-    return snap.docs.map((doc) => {
-      const data = doc.data() as Omit<CommandConfig, 'id'>;
-      return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+    return withRetry(async () => {
+      const snap = await commandConfigs().get();
+      return snap.docs.map((doc) => {
+        const data = doc.data() as Omit<CommandConfig, 'id'>;
+        return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+      });
     });
   },
 
@@ -388,35 +431,37 @@ export const db = {
     description?: string | null;
     category?: string;
   }): Promise<CommandConfig> {
-    const now = nowIso();
-    const existing = await commandConfigs().doc(data.name).get();
-    const defaults: CommandConfig = {
-      id: data.name,
-      name: data.name,
-      enabled: true,
-      aliases: '[]',
-      cooldown: 3,
-      ownerOnly: false,
-      description: null,
-      category: 'general',
-      updatedAt: now,
-    };
-    const base = existing.exists
-      ? ({ ...(existing.data() as Omit<CommandConfig, 'id'>), id: data.name } as CommandConfig)
-      : defaults;
-    const config: CommandConfig = {
-      ...base,
-      name: data.name,
-      updatedAt: now,
-      ...(data.enabled !== undefined && { enabled: data.enabled }),
-      ...(data.aliases !== undefined && { aliases: data.aliases }),
-      ...(data.cooldown !== undefined && { cooldown: data.cooldown }),
-      ...(data.ownerOnly !== undefined && { ownerOnly: data.ownerOnly }),
-      ...(data.description !== undefined && { description: data.description }),
-      ...(data.category !== undefined && { category: data.category }),
-    };
-    await commandConfigs().doc(data.name).set(config);
-    return config;
+    return withRetry(async () => {
+      const now = nowIso();
+      const existing = await commandConfigs().doc(data.name).get();
+      const defaults: CommandConfig = {
+        id: data.name,
+        name: data.name,
+        enabled: true,
+        aliases: '[]',
+        cooldown: 3,
+        ownerOnly: false,
+        description: null,
+        category: 'general',
+        updatedAt: now,
+      };
+      const base = existing.exists
+        ? ({ ...(existing.data() as Omit<CommandConfig, 'id'>), id: data.name } as CommandConfig)
+        : defaults;
+      const config: CommandConfig = {
+        ...base,
+        name: data.name,
+        updatedAt: now,
+        ...(data.enabled !== undefined && { enabled: data.enabled }),
+        ...(data.aliases !== undefined && { aliases: data.aliases }),
+        ...(data.cooldown !== undefined && { cooldown: data.cooldown }),
+        ...(data.ownerOnly !== undefined && { ownerOnly: data.ownerOnly }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.category !== undefined && { category: data.category }),
+      };
+      await commandConfigs().doc(data.name).set(config);
+      return config;
+    });
   },
 
   // ---------- Auto Replies ----------
@@ -428,12 +473,14 @@ export const db = {
   },
 
   async getAutoReplies(): Promise<AutoReply[]> {
-    const snap = await autoReplies().get();
-    const list: AutoReply[] = snap.docs.map((doc) => {
-      const data = doc.data() as Omit<AutoReply, 'id'>;
-      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt), updatedAt: toDateString(data.updatedAt) };
+    return withRetry(async () => {
+      const snap = await autoReplies().get();
+      const list: AutoReply[] = snap.docs.map((doc) => {
+        const data = doc.data() as Omit<AutoReply, 'id'>;
+        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt), updatedAt: toDateString(data.updatedAt) };
+      });
+      return this.privateSortAutoReplies(list);
     });
-    return this.privateSortAutoReplies(list);
   },
 
   async getEnabledAutoReplies(): Promise<AutoReply[]> {
@@ -450,59 +497,69 @@ export const db = {
     priority: number;
     cooldown: number;
   }): Promise<AutoReply> {
-    const now = nowIso();
-    const ref = autoReplies().doc();
-    const rule: AutoReply = {
-      id: ref.id,
-      trigger: data.trigger,
-      matchType: data.matchType,
-      specificNumber: data.specificNumber ?? null,
-      response: data.response,
-      enabled: data.enabled,
-      priority: data.priority,
-      cooldown: data.cooldown,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await ref.set(rule);
-    return rule;
+    return withRetry(async () => {
+      const now = nowIso();
+      const ref = autoReplies().doc();
+      const rule: AutoReply = {
+        id: ref.id,
+        trigger: data.trigger,
+        matchType: data.matchType,
+        specificNumber: data.specificNumber ?? null,
+        response: data.response,
+        enabled: data.enabled,
+        priority: data.priority,
+        cooldown: data.cooldown,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await ref.set(rule);
+      return rule;
+    });
   },
 
   async updateAutoReply(
     id: string,
     data: Partial<Omit<AutoReply, 'id' | 'createdAt'>>
   ): Promise<AutoReply | null> {
-    const doc = await autoReplies().doc(id).get();
-    if (!doc.exists) return null;
-    const current = doc.data() as Omit<AutoReply, 'id'>;
-    const updated: AutoReply = {
-      ...current,
-      ...data,
-      id,
-      createdAt: toDateString(current.createdAt),
-      updatedAt: nowIso(),
-    };
-    await autoReplies().doc(id).set(updated);
-    return updated;
+    return withRetry(async () => {
+      const doc = await autoReplies().doc(id).get();
+      if (!doc.exists) return null;
+      const current = doc.data() as Omit<AutoReply, 'id'>;
+      const updated: AutoReply = {
+        ...current,
+        ...data,
+        id,
+        createdAt: toDateString(current.createdAt),
+        updatedAt: nowIso(),
+      };
+      await autoReplies().doc(id).set(updated);
+      return updated;
+    });
   },
 
   async deleteAutoReply(id: string): Promise<void> {
-    await autoReplies().doc(id).delete();
+    return withRetry(async () => {
+      await autoReplies().doc(id).delete();
+    });
   },
 
   // ---------- Audit Logs ----------
   async getAuditLogs(params: { take: number; skip: number }): Promise<AuditLog[]> {
-    const { take, skip } = params;
-    const snap = await auditLogs().orderBy('createdAt', 'desc').offset(skip).limit(take).get();
-    return snap.docs.map((doc) => {
-      const data = doc.data() as Omit<AuditLog, 'id'>;
-      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+    return withRetry(async () => {
+      const { take, skip } = params;
+      const snap = await auditLogs().orderBy('createdAt', 'desc').offset(skip).limit(take).get();
+      return snap.docs.map((doc) => {
+        const data = doc.data() as Omit<AuditLog, 'id'>;
+        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+      });
     });
   },
 
   async countAuditLogs(): Promise<number> {
-    const snap = await auditLogs().count().get();
-    return snap.data().count;
+    return withRetry(async () => {
+      const snap = await auditLogs().count().get();
+      return snap.data().count;
+    });
   },
 
   async createAuditLog(data: {
@@ -511,18 +568,20 @@ export const db = {
     details?: string | null;
     ipAddress?: string | null;
   }): Promise<AuditLog> {
-    const now = nowIso();
-    const ref = auditLogs().doc();
-    const log: AuditLog = {
-      id: ref.id,
-      action: data.action,
-      actor: data.actor,
-      details: data.details ?? null,
-      ipAddress: data.ipAddress ?? null,
-      createdAt: now,
-    };
-    await ref.set(log);
-    return log;
+    return withRetry(async () => {
+      const now = nowIso();
+      const ref = auditLogs().doc();
+      const log: AuditLog = {
+        id: ref.id,
+        action: data.action,
+        actor: data.actor,
+        details: data.details ?? null,
+        ipAddress: data.ipAddress ?? null,
+        createdAt: now,
+      };
+      await ref.set(log);
+      return log;
+    });
   },
 
   // ---------- Payments ----------
@@ -532,29 +591,33 @@ export const db = {
     utrNumber: string;
     amount: number;
   }): Promise<PaymentRequest> {
-    const now = nowIso();
-    const ref = payments().doc();
-    const request: PaymentRequest = {
-      id: ref.id,
-      userId: data.userId,
-      userEmail: data.userEmail,
-      utrNumber: data.utrNumber,
-      amount: data.amount,
-      status: 'PENDING',
-      createdAt: now,
-      updatedAt: now,
-    };
-    await ref.set(request);
-    return request;
+    return withRetry(async () => {
+      const now = nowIso();
+      const ref = payments().doc();
+      const request: PaymentRequest = {
+        id: ref.id,
+        userId: data.userId,
+        userEmail: data.userEmail,
+        utrNumber: data.utrNumber,
+        amount: data.amount,
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await ref.set(request);
+      return request;
+    });
   },
 
   async getPaymentRequests(): Promise<PaymentRequest[]> {
-    const snap = await payments().get();
-    const list = snap.docs.map((doc) => {
-      const data = doc.data() as Omit<PaymentRequest, 'id'>;
-      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt), updatedAt: toDateString(data.updatedAt) };
+    return withRetry(async () => {
+      const snap = await payments().get();
+      const list = snap.docs.map((doc) => {
+        const data = doc.data() as Omit<PaymentRequest, 'id'>;
+        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt), updatedAt: toDateString(data.updatedAt) };
+      });
+      return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     });
-    return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
   async getUserPaymentStatus(userIdOrEmail: string): Promise<{
@@ -562,35 +625,39 @@ export const db = {
     status: 'UNPAID' | 'PENDING' | 'APPROVED' | 'REJECTED';
     request?: PaymentRequest;
   }> {
-    const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-    if (EXEMPT_EMAILS.some((e) => e.toLowerCase() === userIdOrEmail.toLowerCase())) {
-      return { isApproved: true, status: 'APPROVED' };
-    }
-
-    const snap = await payments().where('userId', '==', userIdOrEmail).get();
-    if (snap.empty) {
-      const snapEmail = await payments().where('userEmail', '==', userIdOrEmail).get();
-      if (snapEmail.empty) {
-        return { isApproved: false, status: 'UNPAID' };
+    return withRetry(async () => {
+      const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+      if (EXEMPT_EMAILS.some((e) => e.toLowerCase() === userIdOrEmail.toLowerCase())) {
+        return { isApproved: true, status: 'APPROVED' };
       }
-      const req = snapEmail.docs[0].data() as PaymentRequest;
+
+      const snap = await payments().where('userId', '==', userIdOrEmail).get();
+      if (snap.empty) {
+        const snapEmail = await payments().where('userEmail', '==', userIdOrEmail).get();
+        if (snapEmail.empty) {
+          return { isApproved: false, status: 'UNPAID' };
+        }
+        const req = snapEmail.docs[0].data() as PaymentRequest;
+        return { isApproved: req.status === 'APPROVED', status: req.status, request: req };
+      }
+      const req = snap.docs[0].data() as PaymentRequest;
       return { isApproved: req.status === 'APPROVED', status: req.status, request: req };
-    }
-    const req = snap.docs[0].data() as PaymentRequest;
-    return { isApproved: req.status === 'APPROVED', status: req.status, request: req };
+    });
   },
 
   async updatePaymentStatus(paymentId: string, status: 'APPROVED' | 'REJECTED'): Promise<PaymentRequest | null> {
-    const doc = await payments().doc(paymentId).get();
-    if (!doc.exists) return null;
-    const current = doc.data() as PaymentRequest;
-    const updated: PaymentRequest = {
-      ...current,
-      status,
-      updatedAt: nowIso(),
-    };
-    await payments().doc(paymentId).set(updated, { merge: true });
-    return updated;
+    return withRetry(async () => {
+      const doc = await payments().doc(paymentId).get();
+      if (!doc.exists) return null;
+      const current = doc.data() as PaymentRequest;
+      const updated: PaymentRequest = {
+        ...current,
+        status,
+        updatedAt: nowIso(),
+      };
+      await payments().doc(paymentId).set(updated, { merge: true });
+      return updated;
+    });
   },
 
   // ---------- Scheduled Messages & Birthday Wishes ----------
@@ -602,50 +669,63 @@ export const db = {
     senderJid: string;
     type?: 'BIRTHDAY' | 'SCHEDULED';
   }): Promise<ScheduledMessage> {
-    const now = nowIso();
-    const ref = scheduledCol().doc();
-    const record: ScheduledMessage = {
-      id: ref.id,
-      targetNumber: data.targetNumber,
-      targetJid: data.targetJid,
-      message: data.message,
-      scheduledAt: data.scheduledAt,
-      senderJid: data.senderJid,
-      type: data.type || 'SCHEDULED',
-      status: 'PENDING',
-      createdAt: now,
-    };
-    await ref.set(record);
-    return record;
+    return withRetry(async () => {
+      const now = nowIso();
+      const ref = scheduledCol().doc();
+      const record: ScheduledMessage = {
+        id: ref.id,
+        targetNumber: data.targetNumber,
+        targetJid: data.targetJid,
+        message: data.message,
+        scheduledAt: data.scheduledAt,
+        senderJid: data.senderJid,
+        type: data.type || 'SCHEDULED',
+        status: 'PENDING',
+        createdAt: now,
+      };
+      await ref.set(record);
+      return record;
+    });
   },
 
   async getPendingScheduledMessages(): Promise<ScheduledMessage[]> {
-    const snap = await scheduledCol().where('status', '==', 'PENDING').get();
-    return snap.docs.map((doc) => {
-      const data = doc.data() as Omit<ScheduledMessage, 'id'>;
-      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+    return withRetry(async () => {
+      const snap = await scheduledCol().where('status', '==', 'PENDING').get();
+      return snap.docs.map((doc) => {
+        const data = doc.data() as Omit<ScheduledMessage, 'id'>;
+        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+      });
     });
   },
 
   async getScheduledMessages(): Promise<ScheduledMessage[]> {
-    const snap = await scheduledCol().get();
-    const list = snap.docs.map((doc) => {
-      const data = doc.data() as Omit<ScheduledMessage, 'id'>;
-      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+    return withRetry(async () => {
+      const snap = await scheduledCol().get();
+      const list = snap.docs.map((doc) => {
+        const data = doc.data() as Omit<ScheduledMessage, 'id'>;
+        return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+      });
+      return list.sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
     });
-    return list.sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
   },
 
   async deleteScheduledMessage(id: string): Promise<void> {
-    await scheduledCol().doc(id).delete();
+    return withRetry(async () => {
+      await scheduledCol().doc(id).delete();
+    });
   },
 
   async markScheduledMessageSent(id: string): Promise<void> {
-    await scheduledCol().doc(id).set({ status: 'SENT' }, { merge: true });
+    return withRetry(async () => {
+      await scheduledCol().doc(id).set({ status: 'SENT' }, { merge: true });
+    });
   },
 
   // ---------- Health ----------
   async ping(): Promise<void> {
-    await users().count().get();
+    return withRetry(async () => {
+      await users().count().get();
+    });
   },
 };
+
