@@ -4,9 +4,13 @@ import { db } from '@private-md-bot/database';
 import { getEnv } from '@private-md-bot/config';
 import { logAudit } from '../queue';
 
-const updateSettingSchema = z.object({
+const updateSingleSettingSchema = z.object({
   key: z.string().min(1),
   value: z.string(),
+});
+
+const updateBatchSettingSchema = z.object({
+  settings: z.record(z.string(), z.string()),
 });
 
 export function registerSettingsRoutes(fastify: FastifyInstance) {
@@ -14,26 +18,55 @@ export function registerSettingsRoutes(fastify: FastifyInstance) {
     const env = getEnv();
     const dbSettings = await db.getSettings();
 
+    const settingsMap: Record<string, string> = {
+      AI_ENABLED: String(env.AI_ENABLED),
+      AI_PROVIDER: 'gemini',
+      GEMINI_API_KEY: env.GEMINI_API_KEY || '',
+      OPENAI_API_KEY: env.OPENAI_API_KEY || '',
+      OPENAI_BASE_URL: env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      OLLAMA_BASE_URL: env.OLLAMA_BASE_URL || 'http://localhost:11434',
+      MESSAGE_LOGGING: String(env.MESSAGE_LOGGING),
+      COMMAND_PREFIX: '.',
+      BOT_OWNER_NUMBER: env.BOT_OWNER_NUMBER || '',
+    };
+
+    for (const item of dbSettings) {
+      settingsMap[item.key] = item.value;
+    }
+
     return {
       environment: {
-        messageLogging: env.MESSAGE_LOGGING,
-        aiEnabled: env.AI_ENABLED,
+        messageLogging: settingsMap.MESSAGE_LOGGING === 'true',
+        aiEnabled: settingsMap.AI_ENABLED === 'true',
         mediaRetention: env.MEDIA_RETENTION,
         analytics: env.ANALYTICS,
-        ownerNumber: env.BOT_OWNER_NUMBER,
+        ownerNumber: settingsMap.BOT_OWNER_NUMBER,
       },
+      settingsMap,
       settings: dbSettings,
     };
   });
 
-  fastify.put('/api/settings', { onRequest: [fastify.authenticate] }, async (request) => {
+  fastify.put('/api/settings', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
-    const { key, value } = updateSettingSchema.parse(request.body);
+    const body = request.body as any;
 
+    if (body && typeof body.settings === 'object' && body.settings !== null) {
+      const { settings } = updateBatchSettingSchema.parse(body);
+      const updatedList = [];
+      for (const [k, v] of Object.entries(settings)) {
+        const item = await db.upsertSetting({ key: k, value: String(v), description: 'Updated via web dashboard' });
+        updatedList.push(item);
+      }
+      await logAudit('SETTINGS_BATCH_UPDATE', user.username, `Batch updated ${updatedList.length} settings via dashboard`, request.ip);
+      return reply.send({ success: true, count: updatedList.length });
+    }
+
+    const { key, value } = updateSingleSettingSchema.parse(body);
     const setting = await db.upsertSetting({ key, value, description: 'Updated via dashboard' });
 
     await logAudit('SETTING_UPDATE', user.username, `Updated setting ${key} = ${value}`, request.ip);
 
-    return { setting };
+    return reply.send({ setting });
   });
 }

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ShieldAlert, RefreshCw } from 'lucide-react';
 
+import Link from 'next/link';
+
 interface AuditLogItem {
   id: string;
   action: string;
@@ -15,12 +17,17 @@ interface AuditLogItem {
 export default function LogsPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const fetchLogs = async () => {
     try {
       const res = await fetch('/api/logs', { credentials: 'include' });
       if (res.status === 401) {
         window.location.href = '/login';
+        return;
+      }
+      if (res.status === 403) {
+        setAccessDenied(true);
         return;
       }
       const data = await res.json();
@@ -35,6 +42,26 @@ export default function LogsPage() {
   useEffect(() => {
     fetchLogs();
   }, []);
+
+  if (accessDenied) {
+    return (
+      <div className="rounded-[40px] bg-[#f7f6f2] p-12 text-center text-[#070607] space-y-4">
+        <ShieldAlert className="mx-auto h-16 w-16 text-[#fc5000] opacity-90" />
+        <h1 className="font-display text-4xl uppercase tracking-wide">Access Restricted</h1>
+        <p className="text-sm font-medium text-[#070607]/70 max-w-md mx-auto">
+          Administrative audit logs are strictly restricted to system administrators.
+        </p>
+        <div className="pt-2">
+          <Link
+            href="/dashboard"
+            className="inline-block rounded-full bg-[#070607] px-6 py-3 text-xs font-bold text-[#ffffff] transition hover:bg-[#fc5000] hover:text-[#070607]"
+          >
+            Return to Overview
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 text-[#070607]">

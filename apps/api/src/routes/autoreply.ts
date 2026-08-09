@@ -4,8 +4,9 @@ import { db, MatchType } from '@private-md-bot/database';
 import { logAudit } from '../queue';
 
 const autoReplySchema = z.object({
-  trigger: z.string().min(1),
-  matchType: z.enum(['EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX']),
+  trigger: z.string().optional().default('*'),
+  matchType: z.enum(['EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX', 'ANY']),
+  specificNumber: z.string().optional().nullable(),
   response: z.string().min(1),
   enabled: z.boolean().default(true),
   priority: z.number().int().default(1),
@@ -22,9 +23,12 @@ export function registerAutoReplyRoutes(fastify: FastifyInstance) {
     const user = (request as any).user;
     const body = autoReplySchema.parse(request.body);
 
+    const triggerVal = body.matchType === 'ANY' ? (body.trigger?.trim() || '*') : (body.trigger?.trim() || '*');
+
     const rule = await db.createAutoReply({
-      trigger: body.trigger,
+      trigger: triggerVal,
       matchType: body.matchType as MatchType,
+      specificNumber: body.specificNumber?.trim() || null,
       response: body.response,
       enabled: body.enabled,
       priority: body.priority,
@@ -44,6 +48,7 @@ export function registerAutoReplyRoutes(fastify: FastifyInstance) {
     const rule = await db.updateAutoReply(id, {
       ...(body.trigger !== undefined && { trigger: body.trigger }),
       ...(body.matchType !== undefined && { matchType: body.matchType as MatchType }),
+      ...(body.specificNumber !== undefined && { specificNumber: body.specificNumber }),
       ...(body.response !== undefined && { response: body.response }),
       ...(body.enabled !== undefined && { enabled: body.enabled }),
       ...(body.priority !== undefined && { priority: body.priority }),

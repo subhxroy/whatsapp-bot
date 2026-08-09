@@ -29,11 +29,13 @@ export function startMessageScheduler(sessionManager: SessionManager) {
           await client.sendMessage(item.targetJid, item.message);
           await db.markScheduledMessageSent(item.id);
 
-          if (item.senderJid) {
-            await client.sendMessage(
-              item.senderJid,
-              `🎉 *Delivered ${item.type === 'BIRTHDAY' ? 'Birthday Wish' : 'Scheduled Message'}!*\n• *To:* ${item.targetNumber}\n• *Message:* ${item.message}`
-            );
+          if (item.senderJid && item.senderJid.includes('@s.whatsapp.net')) {
+            try {
+              await client.sendMessage(
+                item.senderJid,
+                `🎉 *Delivered ${item.type === 'BIRTHDAY' ? 'Birthday Wish' : 'Scheduled Message'}!*\n• *To:* ${item.targetNumber}\n• *Message:* ${item.message}`
+              );
+            } catch {}
           }
         } catch (err: any) {
           console.error(`[Scheduler] Error delivering scheduled message ${item.id}:`, err);
@@ -42,5 +44,5 @@ export function startMessageScheduler(sessionManager: SessionManager) {
     } catch (err) {
       console.error('[Scheduler] Poll error:', err);
     }
-  }, 15000);
+  }, 5000);
 }

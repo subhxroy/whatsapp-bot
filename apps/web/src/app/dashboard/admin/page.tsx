@@ -85,7 +85,7 @@ export default function AdminPortalPage() {
 
   const pendingCount = requests.filter((r) => r.status === 'PENDING').length;
   const approvedCount = requests.filter((r) => r.status === 'APPROVED').length;
-  const totalRevenue = approvedCount * 200;
+  const totalRevenue = approvedCount * BOT_PRICE;
 
   const filteredRequests = requests.filter((r) => {
     if (filter === 'ALL') return true;

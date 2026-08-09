@@ -18,6 +18,7 @@ import { registerAutoReplyRoutes } from './routes/autoreply';
 import { registerSettingsRoutes } from './routes/settings';
 import { registerLogRoutes } from './routes/logs';
 import { registerPaymentRoutes } from './routes/payment';
+import { registerScheduledMessageRoutes } from './routes/scheduler';
 import { registerWebSocketGateway } from './websocket';
 import { startMessageScheduler } from './scheduler';
 
@@ -112,6 +113,7 @@ export async function buildServer() {
   registerSettingsRoutes(fastify);
   registerLogRoutes(fastify);
   registerPaymentRoutes(fastify, sessionManager);
+  registerScheduledMessageRoutes(fastify);
   registerWebSocketGateway(fastify, sessionManager);
 
   return { fastify, sessionManager };

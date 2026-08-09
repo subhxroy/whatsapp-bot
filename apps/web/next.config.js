@@ -3,10 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@private-md-bot/config', '@private-md-bot/security'],
   async rewrites() {
+    const apiUrl = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000').replace(/\/$/, '');
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:4000/api/:path*',
+        destination: `${apiUrl}/api/:path*`,
       },
     ];
   },

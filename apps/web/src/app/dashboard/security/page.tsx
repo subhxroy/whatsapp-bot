@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Lock, ExternalLink, UserCheck, CreditCard, Check, X, RefreshCw } from 'lucide-react';
 
+import Link from 'next/link';
+
 const BOT_PRICE = 150;
 const BOT_CURRENCY = '₹';
 
@@ -21,11 +23,17 @@ export default function SecurityPage() {
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const fetchPaymentRequests = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/payment/admin/requests');
+      if (res.status === 403) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setRequests(data.requests || []);
@@ -35,8 +43,45 @@ export default function SecurityPage() {
   };
 
   useEffect(() => {
-    fetchPaymentRequests();
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        const user = d?.user;
+        if (user) {
+          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+          const userEmail = (user.username || '').toLowerCase();
+          const isAdmin = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          if (!isAdmin) {
+            setAccessDenied(true);
+            return;
+          }
+        }
+        fetchPaymentRequests();
+      })
+      .catch(() => {
+        fetchPaymentRequests();
+      });
   }, []);
+
+  if (accessDenied) {
+    return (
+      <div className="rounded-[40px] bg-[#f7f6f2] p-12 text-center text-[#070607] space-y-4">
+        <Lock className="mx-auto h-16 w-16 text-[#fc5000] opacity-90" />
+        <h1 className="font-display text-4xl uppercase tracking-wide">Access Restricted</h1>
+        <p className="text-sm font-medium text-[#070607]/70 max-w-md mx-auto">
+          Security and access control settings are strictly restricted to system administrators.
+        </p>
+        <div className="pt-2">
+          <Link
+            href="/dashboard"
+            className="inline-block rounded-full bg-[#070607] px-6 py-3 text-xs font-bold text-[#ffffff] transition hover:bg-[#fc5000] hover:text-[#070607]"
+          >
+            Return to Overview
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleApprove = async (paymentId: string) => {
     setActionId(paymentId);

@@ -8,7 +8,16 @@ import { settingsCommand } from './plugins/settings';
 import { stickerCommand } from './plugins/sticker';
 import { toImgCommand } from './plugins/toimg';
 import { aiCommand } from './plugins/ai';
-import { groupCommand, promoteCommand, demoteCommand, kickCommand, tagAllCommand } from './plugins/group';
+import {
+  groupCommand,
+  promoteCommand,
+  demoteCommand,
+  kickCommand,
+  tagAllCommand,
+  hidetagCommand,
+  groupInfoCommand,
+  linkCommand,
+} from './plugins/group';
 import { antilinkCommand } from './plugins/antilink';
 import { ytmp3Command, ytmp4Command } from './plugins/downloader';
 import { vvCommand } from './plugins/vv';
@@ -19,6 +28,27 @@ import { pollCommand } from './plugins/poll';
 import { toAudioCommand } from './plugins/toaudio';
 import { toGifCommand } from './plugins/togif';
 import { adminsCommand } from './plugins/admins';
+import {
+  translateCommand,
+  weatherCommand,
+  dictCommand,
+  shortenCommand,
+  qrcodeCommand,
+} from './plugins/utility';
+import {
+  rollCommand,
+  flipCommand,
+  quoteCommand,
+  jokeCommand,
+  triviaCommand,
+  factCommand,
+  eightBallCommand,
+} from './plugins/fun';
+import {
+  systemCommand,
+  evalCommand,
+  restartCommand,
+} from './plugins/system';
 
 class CommandRegistry {
   private commands: Map<string, CommandPlugin> = new Map();
@@ -44,6 +74,9 @@ class CommandRegistry {
       demoteCommand,
       kickCommand,
       tagAllCommand,
+      hidetagCommand,
+      groupInfoCommand,
+      linkCommand,
       antilinkCommand,
       ytmp3Command,
       ytmp4Command,
@@ -55,6 +88,21 @@ class CommandRegistry {
       toAudioCommand,
       toGifCommand,
       adminsCommand,
+      translateCommand,
+      weatherCommand,
+      dictCommand,
+      shortenCommand,
+      qrcodeCommand,
+      rollCommand,
+      flipCommand,
+      quoteCommand,
+      jokeCommand,
+      triviaCommand,
+      factCommand,
+      eightBallCommand,
+      systemCommand,
+      evalCommand,
+      restartCommand,
     ];
 
     for (const cmd of defaults) {

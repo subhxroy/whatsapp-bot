@@ -3,6 +3,14 @@ import { db } from '@private-md-bot/database';
 import { SessionManager } from '../session-manager';
 
 export function registerHealthRoutes(fastify: FastifyInstance, sessionManager: SessionManager) {
+  fastify.get('/health', async () => {
+    return {
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
+  });
+
   fastify.get('/api/health', async () => {
     return {
       status: 'ok',

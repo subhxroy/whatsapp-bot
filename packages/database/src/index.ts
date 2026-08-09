@@ -3,7 +3,7 @@ import path from 'path';
 import { initializeApp, cert, getApps, getApp } from 'firebase-admin/app';
 import { getFirestore, Firestore, Timestamp } from 'firebase-admin/firestore';
 
-export type MatchType = 'EXACT' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | 'REGEX';
+export type MatchType = 'EXACT' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | 'REGEX' | 'ANY';
 export type Role = 'PUBLIC' | 'ADMIN' | 'OWNER';
 
 export interface User {
@@ -41,6 +41,7 @@ export interface AutoReply {
   id: string;
   trigger: string;
   matchType: MatchType;
+  specificNumber?: string | null;
   response: string;
   enabled: boolean;
   priority: number;
@@ -407,6 +408,7 @@ export const db = {
   async createAutoReply(data: {
     trigger: string;
     matchType: MatchType;
+    specificNumber?: string | null;
     response: string;
     enabled: boolean;
     priority: number;
@@ -418,6 +420,7 @@ export const db = {
       id: ref.id,
       trigger: data.trigger,
       matchType: data.matchType,
+      specificNumber: data.specificNumber ?? null,
       response: data.response,
       enabled: data.enabled,
       priority: data.priority,
@@ -586,6 +589,19 @@ export const db = {
       const data = doc.data() as Omit<ScheduledMessage, 'id'>;
       return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
     });
+  },
+
+  async getScheduledMessages(): Promise<ScheduledMessage[]> {
+    const snap = await scheduledCol().get();
+    const list = snap.docs.map((doc) => {
+      const data = doc.data() as Omit<ScheduledMessage, 'id'>;
+      return { ...data, id: doc.id, createdAt: toDateString(data.createdAt) };
+    });
+    return list.sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
+  },
+
+  async deleteScheduledMessage(id: string): Promise<void> {
+    await scheduledCol().doc(id).delete();
   },
 
   async markScheduledMessageSent(id: string): Promise<void> {

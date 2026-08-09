@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Lock,
   Settings,
+  Clock,
   LogOut,
   Flame,
   Menu,
@@ -24,16 +25,42 @@ const navItems = [
   { href: '/dashboard/whatsapp', label: 'WhatsApp', icon: QrCode },
   { href: '/dashboard/commands', label: 'Commands', icon: Terminal },
   { href: '/dashboard/auto-reply', label: 'Auto-Reply', icon: MessageSquare },
+  { href: '/dashboard/schedule', label: 'Schedule', icon: Clock },
   { href: '/dashboard/ai', label: 'AI Assistant', icon: Bot },
   { href: '/dashboard/media', label: 'Media Settings', icon: FileImage },
-  { href: '/dashboard/logs', label: 'Audit Logs', icon: ShieldAlert },
-  { href: '/dashboard/security', label: 'Security', icon: Lock },
+  { href: '/dashboard/logs', label: 'Audit Logs', icon: ShieldAlert, adminOnly: true },
+  { href: '/dashboard/security', label: 'Security', icon: Lock, adminOnly: true },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const cached = typeof window !== 'undefined' ? sessionStorage.getItem('caldera_is_admin') : null;
+    if (cached !== null) {
+      setIsAdmin(cached === 'true');
+    }
+
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        const user = data?.user;
+        if (user) {
+          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
+          const userEmail = (user.username || '').toLowerCase();
+          const adminCheck = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          setIsAdmin(adminCheck);
+          sessionStorage.setItem('caldera_is_admin', String(adminCheck));
+        } else {
+          setIsAdmin(false);
+          sessionStorage.setItem('caldera_is_admin', 'false');
+        }
+      })
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -41,6 +68,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } catch {}
     window.location.href = '/login';
   };
+
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin === true);
 
   return (
     <div className="min-h-screen bg-[#e2e2df] text-[#070607]">
@@ -84,7 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Navigation Links */}
             <nav className="space-y-1">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
                 return (
@@ -135,7 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
 
                 <nav className="space-y-1.5">
-                  {navItems.map((item) => {
+                  {visibleNavItems.map((item) => {
                     const Icon = item.icon;
                     const active = pathname === item.href;
                     return (

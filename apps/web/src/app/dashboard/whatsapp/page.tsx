@@ -24,7 +24,7 @@ export default function WhatsAppConnectionPage() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('/api/whatsapp/status');
+      const res = await fetch('/api/whatsapp/status', { credentials: 'include' });
       if (res.status === 401) {
         window.location.href = '/login';
         return;
@@ -41,7 +41,7 @@ export default function WhatsAppConnectionPage() {
 
   const fetchPaymentStatus = async () => {
     try {
-      const res = await fetch('/api/payment/status');
+      const res = await fetch('/api/payment/status', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setIsApproved(data.isApproved ?? true);
@@ -67,6 +67,7 @@ export default function WhatsAppConnectionPage() {
     try {
       const res = await fetch('/api/whatsapp/connect', {
         method: 'POST',
+        credentials: 'include',
       });
       if (res.status === 401) {
         window.location.href = '/login';
@@ -87,7 +88,7 @@ export default function WhatsAppConnectionPage() {
     setLoading(true);
     setError('');
     try {
-      await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+      await fetch('/api/whatsapp/disconnect', { method: 'POST', credentials: 'include' });
       setPairingCode(null);
       setQrCode(null);
       await fetchStatus();
@@ -112,6 +113,7 @@ export default function WhatsAppConnectionPage() {
       const res = await fetch('/api/whatsapp/pair-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ phoneNumber }),
       });
       const data = await res.json();
@@ -135,6 +137,7 @@ export default function WhatsAppConnectionPage() {
       const res = await fetch('/api/payment/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ utrNumber: utrNumber.trim(), amount: BOT_PRICE }),
       });
       const data = await res.json();

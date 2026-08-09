@@ -12,6 +12,15 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
   const rules = await db.getEnabledAutoReplies();
 
   for (const rule of rules) {
+    // Specific phone number filter check
+    if (rule.specificNumber && rule.specificNumber.trim()) {
+      const cleanTarget = rule.specificNumber.replace(/\D/g, '');
+      const senderDigits = (msg.senderJid || '').replace(/\D/g, '');
+      if (cleanTarget && !senderDigits.endsWith(cleanTarget) && senderDigits !== cleanTarget) {
+        continue;
+      }
+    }
+
     let matches = false;
     const trigger = rule.trigger.trim();
 
@@ -35,6 +44,9 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
         } catch {
           matches = false;
         }
+        break;
+      case 'ANY':
+        matches = true;
         break;
     }
 
