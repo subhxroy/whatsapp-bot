@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, MessageSquare, Target, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, MessageSquare, Target, X } from 'lucide-react';
 
 interface AutoReplyRule {
   id: string;
@@ -17,6 +17,9 @@ interface AutoReplyRule {
 export default function AutoReplyPage() {
   const [rules, setRules] = useState<AutoReplyRule[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingRule, setEditingRule] = useState<AutoReplyRule | null>(null);
+
+  // Form state
   const [trigger, setTrigger] = useState('');
   const [matchType, setMatchType] = useState<AutoReplyRule['matchType']>('EXACT');
   const [specificNumber, setSpecificNumber] = useState('');
@@ -24,6 +27,7 @@ export default function AutoReplyPage() {
   const [priority, setPriority] = useState(1);
   const [cooldown, setCooldown] = useState(5);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchRules = async () => {
     try {
@@ -56,12 +60,40 @@ export default function AutoReplyPage() {
     };
   }, [showModal]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const openCreateModal = () => {
+    setEditingRule(null);
+    setTrigger('');
+    setMatchType('EXACT');
+    setSpecificNumber('');
+    setResponse('');
+    setPriority(1);
+    setCooldown(5);
+    setShowModal(true);
+  };
+
+  const openEditModal = (rule: AutoReplyRule) => {
+    setEditingRule(rule);
+    setTrigger(rule.trigger);
+    setMatchType(rule.matchType);
+    setSpecificNumber(rule.specificNumber ? rule.specificNumber.replace(/\D/g, '') : '');
+    setResponse(rule.response);
+    setPriority(rule.priority ?? 1);
+    setCooldown(rule.cooldown ?? 5);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     const finalTrigger = matchType === 'ANY' ? (trigger.trim() || '*') : trigger.trim();
+
     try {
-      await fetch('/api/auto-replies', {
-        method: 'POST',
+      const isEdit = !!editingRule;
+      const url = isEdit ? `/api/auto-replies/${editingRule.id}` : '/api/auto-replies';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
@@ -73,13 +105,19 @@ export default function AutoReplyPage() {
           cooldown,
         }),
       });
-      setShowModal(false);
-      setTrigger('');
-      setSpecificNumber('');
-      setResponse('');
-      fetchRules();
+
+      if (res.ok) {
+        setShowModal(false);
+        setEditingRule(null);
+        setTrigger('');
+        setSpecificNumber('');
+        setResponse('');
+        fetchRules();
+      }
     } catch (err) {
       console.error(err);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -104,15 +142,15 @@ export default function AutoReplyPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center justify-center gap-2 rounded-full bg-[#fc5000] px-6 py-3.5 text-base font-semibold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff]"
+          onClick={openCreateModal}
+          className="flex items-center justify-center gap-2 rounded-full bg-[#fc5000] px-6 py-3.5 text-base font-semibold text-[#070607] transition hover:bg-[#070607] hover:text-[#ffffff] shadow-md"
         >
           <Plus className="h-5 w-5" />
           <span>Add New Rule</span>
         </button>
       </div>
 
-      <div className="rounded-[40px] bg-[#f7f6f2] p-8 overflow-hidden">
+      <div className="rounded-[40px] bg-[#f7f6f2] p-8 overflow-hidden shadow-sm border border-[#070607]/5">
         {loading ? (
           <div className="py-12 text-center text-[#070607]/60 font-medium text-sm">
             Loading rules...
@@ -166,12 +204,22 @@ export default function AutoReplyPage() {
                     <td className="py-4 px-6 text-[#070607]/80 max-w-xs truncate font-medium">{rule.response}</td>
                     <td className="py-4 px-6 text-xs font-semibold text-[#070607]">{rule.priority}</td>
                     <td className="py-4 pl-6 text-right">
-                      <button
-                        onClick={() => handleDelete(rule.id)}
-                        className="rounded-full p-2 text-[#fc5000] hover:bg-[#fc5000] hover:text-[#070607] transition"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEditModal(rule)}
+                          className="rounded-full p-2 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                          title="Edit Auto-Reply Rule"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(rule.id)}
+                          className="rounded-full p-2 text-[#fc5000] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                          title="Delete Rule"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -182,13 +230,18 @@ export default function AutoReplyPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070607]/80 backdrop-blur-md p-3 sm:p-6 overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070607]/95 backdrop-blur-xl p-3 sm:p-6 overflow-y-auto">
           <div className="relative w-full max-w-xl max-h-[90vh] rounded-[40px] bg-[#f7f6f2] shadow-2xl flex flex-col border border-[#070607]/15 overflow-hidden my-auto text-[#070607]">
             <div className="flex items-center justify-between p-6 pb-4 border-b border-dotted border-[#070607]/20 flex-shrink-0 bg-[#f7f6f2]">
-              <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">Create Auto-Reply Rule</h2>
+              <h2 className="font-display text-3xl sm:text-4xl uppercase text-[#070607]">
+                {editingRule ? 'Edit Auto-Reply Rule' : 'Create Auto-Reply Rule'}
+              </h2>
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingRule(null);
+                }}
                 className="rounded-full bg-[#e2e2df] p-2 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] transition"
                 title="Close"
               >
@@ -196,9 +249,9 @@ export default function AutoReplyPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#070607]/70">
                   Trigger Keyword / Regex
                 </label>
                 <input
@@ -212,7 +265,7 @@ export default function AutoReplyPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#070607]/70">
                   Match Type
                 </label>
                 <select
@@ -236,7 +289,7 @@ export default function AutoReplyPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#070607]/70">
                   Target Contact Phone Number (Optional Filter)
                 </label>
                 <input
@@ -252,7 +305,7 @@ export default function AutoReplyPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#070607]/70">
                   Automated Response
                 </label>
                 <textarea
@@ -268,16 +321,20 @@ export default function AutoReplyPage() {
               <div className="flex gap-4 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 rounded-full border border-[#070607] py-3.5 text-sm font-semibold text-[#070607] hover:bg-[#e2e2df]"
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingRule(null);
+                  }}
+                  className="flex-1 rounded-full border border-[#070607] py-3.5 text-sm font-semibold text-[#070607] hover:bg-[#e2e2df] transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-full bg-[#fc5000] py-3.5 text-sm font-semibold text-[#070607] hover:bg-[#070607] hover:text-[#ffffff]"
+                  disabled={submitting}
+                  className="flex-1 rounded-full bg-[#fc5000] py-3.5 text-sm font-semibold text-[#070607] hover:bg-[#070607] hover:text-[#ffffff] disabled:opacity-50 transition shadow-md"
                 >
-                  Save Rule
+                  {submitting ? 'Saving...' : editingRule ? 'Update Rule' : 'Save Rule'}
                 </button>
               </div>
             </form>
@@ -287,4 +344,5 @@ export default function AutoReplyPage() {
     </div>
   );
 }
+
 
