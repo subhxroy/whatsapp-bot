@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 // Helper: get first mentioned JID from context info
 function getMentionedJid(ctx: any): string | null {
@@ -15,7 +15,7 @@ export const groupCommand: CommandPlugin = {
   aliases: ['g', 'gc'],
   description: 'Manage WhatsApp group settings (open/close group chat)',
   category: 'admin',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
@@ -55,7 +55,7 @@ export const promoteCommand: CommandPlugin = {
   aliases: ['pm'],
   description: 'Promote a mentioned user to group admin',
   category: 'admin',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -86,7 +86,7 @@ export const demoteCommand: CommandPlugin = {
   aliases: ['dm'],
   description: 'Demote a mentioned admin back to member',
   category: 'admin',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -117,7 +117,7 @@ export const kickCommand: CommandPlugin = {
   aliases: ['remove'],
   description: 'Remove a mentioned user from the group',
   category: 'admin',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -148,7 +148,7 @@ export const tagAllCommand: CommandPlugin = {
   aliases: ['everyone'],
   description: 'Tag or announce a message to all group participants',
   category: 'admin',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 10,
   execute: async (ctx) => {
@@ -183,7 +183,7 @@ export const hidetagCommand: CommandPlugin = {
   aliases: ['ht'],
   description: 'Send a hidden tag notification to all group members',
   category: 'admin',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 10,
   execute: async (ctx) => {
@@ -214,7 +214,7 @@ export const groupInfoCommand: CommandPlugin = {
   aliases: ['gcinfo', 'groupdetails'],
   description: 'Display group metadata, participant count, and settings',
   category: 'group',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -251,7 +251,7 @@ export const linkCommand: CommandPlugin = {
   aliases: ['gclink', 'grouplink'],
   description: 'Get current group invite link',
   category: 'group',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {

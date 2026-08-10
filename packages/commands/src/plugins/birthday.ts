@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 import { db } from '@private-md-bot/database';
 
 export const birthdayCommand: CommandPlugin = {
@@ -6,19 +6,19 @@ export const birthdayCommand: CommandPlugin = {
   aliases: ['wish', 'schedule', 'schedulemsg'],
   description: 'Schedule a birthday wish or automated message to a target phone number',
   category: 'utility',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
     const rawArgs = ctx.args.join(' ').trim();
     if (!rawArgs || !rawArgs.includes('|')) {
       return await ctx.reply(
-        `🎂 *BIRTHDAY & SCHEDULED MESSAGE TOOL*\n\n` +
+        `ðŸŽ‚ *BIRTHDAY & SCHEDULED MESSAGE TOOL*\n\n` +
           `*Usage Syntax:*\n` +
           `\`${ctx.prefix}birthday <phone_number> <YYYY-MM-DD HH:mm> | <message>\`\n\n` +
           `*Examples:*\n` +
-          `• \`${ctx.prefix}birthday 919876543210 2026-08-09 00:00 | Happy Birthday my friend! 🎉🎂\`\n` +
-          `• \`${ctx.prefix}schedule 919876543210 2026-08-09 09:30 | Morning meeting alert!\`\n\n` +
+          `â€¢ \`${ctx.prefix}birthday 919876543210 2026-08-09 00:00 | Happy Birthday my friend! ðŸŽ‰ðŸŽ‚\`\n` +
+          `â€¢ \`${ctx.prefix}schedule 919876543210 2026-08-09 09:30 | Morning meeting alert!\`\n\n` +
           `_Note: Type this in your self-chat or any chat. The target person WILL NOT see your command; the bot will send the wish directly at the exact scheduled time!_`
       );
     }
@@ -28,7 +28,7 @@ export const birthdayCommand: CommandPlugin = {
     const headerTokens = header.trim().split(/\s+/);
 
     if (headerTokens.length < 3 || !message) {
-      return await ctx.reply('❌ Invalid format. Please specify phone number, date, time, and message separated by `|`.');
+      return await ctx.reply('âŒ Invalid format. Please specify phone number, date, time, and message separated by `|`.');
     }
 
     const phoneInput = headerTokens[0];
@@ -37,18 +37,18 @@ export const birthdayCommand: CommandPlugin = {
 
     const cleanNumber = phoneInput.replace(/\D/g, '');
     if (cleanNumber.length < 7) {
-      return await ctx.reply('❌ Invalid target phone number.');
+      return await ctx.reply('âŒ Invalid target phone number.');
     }
 
     const targetJid = `${cleanNumber}@s.whatsapp.net`;
     const targetDateTime = new Date(`${dateStr}T${timeStr}:00`);
 
     if (isNaN(targetDateTime.getTime())) {
-      return await ctx.reply('❌ Invalid Date/Time format. Please use `YYYY-MM-DD HH:mm` (e.g. `2026-08-09 00:00`).');
+      return await ctx.reply('âŒ Invalid Date/Time format. Please use `YYYY-MM-DD HH:mm` (e.g. `2026-08-09 00:00`).');
     }
 
     if (targetDateTime.getTime() <= Date.now()) {
-      return await ctx.reply('❌ Scheduled time must be in the future.');
+      return await ctx.reply('âŒ Scheduled time must be in the future.');
     }
 
     const record = await db.createScheduledMessage({
@@ -61,11 +61,11 @@ export const birthdayCommand: CommandPlugin = {
     });
 
     await ctx.reply(
-      `✅ *SUCCESSFULLY SCHEDULED!*\n` +
-        `• *Target Number:* +${cleanNumber}\n` +
-        `• *Scheduled For:* ${targetDateTime.toLocaleString()}\n` +
-        `• *Message:* ${message}\n` +
-        `• *Reference ID:* \`${record.id}\`\n\n` +
+      `âœ… *SUCCESSFULLY SCHEDULED!*\n` +
+        `â€¢ *Target Number:* +${cleanNumber}\n` +
+        `â€¢ *Scheduled For:* ${targetDateTime.toLocaleString()}\n` +
+        `â€¢ *Message:* ${message}\n` +
+        `â€¢ *Reference ID:* \`${record.id}\`\n\n` +
         `_The message will automatically be sent by the bot at the exact time._`
     );
   },

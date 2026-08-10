@@ -82,9 +82,13 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
     return reply.send({ command: updated });
   });
 
-  // Test & Execute command directly from dashboard
+  // Test & Execute command directly from dashboard (ADMIN ONLY — bypasses WhatsApp
+  // sender authorization, so it must never be reachable by a regular user)
   fastify.post('/api/commands/execute', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
+    if (!checkAdmin(user)) {
+      return reply.status(403).send({ error: 'Access restricted to administrators' });
+    }
     const { commandText } = executeCommandSchema.parse(request.body);
 
     const trimmed = commandText.trim();

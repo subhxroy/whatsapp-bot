@@ -44,7 +44,10 @@ export const envSchema = z.object({
   ANALYTICS: z.string().transform((v) => v === 'true').default('false'),
   THIRD_PARTY_TRACKING: z.string().transform((v) => v === 'true').default('false'),
 
-  BOT_OWNER_NUMBER: z.string().default('1234567890'),
+  // SECURITY: empty by default so missing owner config FAILS CLOSED (nobody authorized).
+  // The dashboard persists the authoritative value to Firestore settings/BOT_OWNER_NUMBER;
+  // this env var is only a bootstrap fallback.
+  BOT_OWNER_NUMBER: z.string().default(''),
 
   GEMINI_API_KEY: z.string().optional().default(''),
   OPENAI_API_KEY: z.string().optional().default(''),

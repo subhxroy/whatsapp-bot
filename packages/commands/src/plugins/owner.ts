@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 import { getEnv } from '@private-md-bot/config';
 
 export const ownerCommand: CommandPlugin = {
@@ -6,7 +6,7 @@ export const ownerCommand: CommandPlugin = {
   aliases: ['creator', 'developer', 'author'],
   description: 'Display bot owner contact and portfolio details',
   category: 'general',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
@@ -14,11 +14,11 @@ export const ownerCommand: CommandPlugin = {
     const ownerNum = env.BOT_OWNER_NUMBER || '919864149429';
     const cleanNum = ownerNum.replace(/\D/g, '');
 
-    const text = `👑 *CALDERA BOT — CREATOR & DEVELOPER*
-• *Creator:* Subhankar Roy
-• *Portfolio:* https://subhankar.vercel.app
-• *Email:* contact.subhroy@gmail.com / aarxslan@gmail.com
-• *WhatsApp:* https://wa.me/${cleanNum}
+    const text = `ðŸ‘‘ *CALDERA BOT â€” CREATOR & DEVELOPER*
+â€¢ *Creator:* Subhankar Roy
+â€¢ *Portfolio:* https://subhankar.vercel.app
+â€¢ *Email:* contact.subhroy@gmail.com / aarxslan@gmail.com
+â€¢ *WhatsApp:* https://wa.me/${cleanNum}
 
 _Private & Secure WhatsApp Automation Control Center._`;
 

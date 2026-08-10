@@ -424,6 +424,15 @@ export const db = {
     });
   },
 
+  async getCommandConfig(name: string): Promise<CommandConfig | null> {
+    return withRetry(async () => {
+      const doc = await commandConfigs().doc(name).get();
+      if (!doc.exists) return null;
+      const data = doc.data() as Omit<CommandConfig, 'id'>;
+      return { ...data, id: doc.id, updatedAt: toDateString(data.updatedAt) };
+    });
+  },
+
   async upsertCommandConfig(data: {
     name: string;
     enabled?: boolean;

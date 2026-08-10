@@ -1,11 +1,11 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 export const pollCommand: CommandPlugin = {
   name: 'poll',
   aliases: ['createpoll'],
   description: 'Create an interactive WhatsApp poll in group or DM',
   category: 'utility',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {

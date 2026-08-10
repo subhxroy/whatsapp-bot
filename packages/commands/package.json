@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --external firebase-admin",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch --external firebase-admin",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@private-md-bot/ai": "workspace:*",

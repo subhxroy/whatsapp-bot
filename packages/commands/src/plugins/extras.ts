@@ -1,7 +1,7 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 /**
- * .time — World clock: get current time for any city or timezone.
+ * .time â€” World clock: get current time for any city or timezone.
  * Uses the worldtimeapi.org or IP-based time lookup as fallback.
  */
 export const timeCommand: CommandPlugin = {
@@ -9,7 +9,7 @@ export const timeCommand: CommandPlugin = {
   aliases: ['clock', 'timezone', 'tz'],
   description: 'Get current time for any city or timezone (e.g. .time India)',
   category: 'utility',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -75,7 +75,7 @@ export const timeCommand: CommandPlugin = {
       const dateStr = dt.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
       await ctx.reply(
-        `\u{1F550} *World Clock — ${query.toUpperCase()}*\n\n` +
+        `\u{1F550} *World Clock â€” ${query.toUpperCase()}*\n\n` +
         `\u2022 *Time:* ${timeStr}\n` +
         `\u2022 *Date:* ${dateStr}\n` +
         `\u2022 *Timezone:* ${data.timezone}\n` +
@@ -98,14 +98,14 @@ export const timeCommand: CommandPlugin = {
 };
 
 /**
- * .currency — Live forex currency converter using exchangerate-api (free tier).
+ * .currency â€” Live forex currency converter using exchangerate-api (free tier).
  */
 export const currencyCommand: CommandPlugin = {
   name: 'currency',
   aliases: ['convert', 'forex', 'fx'],
   description: 'Convert between currencies with live exchange rates (e.g. .currency 100 USD INR)',
   category: 'utility',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
@@ -156,14 +156,14 @@ export const currencyCommand: CommandPlugin = {
 };
 
 /**
- * .remind — Personal timer that sends you a reminder message after a delay.
+ * .remind â€” Personal timer that sends you a reminder message after a delay.
  */
 export const remindCommand: CommandPlugin = {
   name: 'remind',
   aliases: ['reminder', 'remindme'],
   description: 'Set a personal reminder. Usage: .remind 10m Buy groceries',
   category: 'utility',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -172,9 +172,9 @@ export const remindCommand: CommandPlugin = {
         `\u23f0 *REMINDER TOOL*\n\n` +
         `*Usage:* \`${ctx.prefix}remind <time> <message>\`\n\n` +
         `*Time formats:*\n` +
-        `\u2022 \`30s\` — 30 seconds\n` +
-        `\u2022 \`5m\` — 5 minutes\n` +
-        `\u2022 \`2h\` — 2 hours\n\n` +
+        `\u2022 \`30s\` â€” 30 seconds\n` +
+        `\u2022 \`5m\` â€” 5 minutes\n` +
+        `\u2022 \`2h\` â€” 2 hours\n\n` +
         `*Examples:*\n` +
         `\u2022 \`${ctx.prefix}remind 10m Take medicine\`\n` +
         `\u2022 \`${ctx.prefix}remind 1h Meeting starts now!\`\n` +
@@ -218,21 +218,21 @@ export const remindCommand: CommandPlugin = {
       try {
         await ctx.client.sendMessage(chatId, `\u{1F514} *REMINDER for ${senderName}:*\n\n${reminderText}\n\n_This reminder was set ${friendlyTime} ago._`);
       } catch {
-        // Client may have disconnected — reminder silently dropped
+        // Client may have disconnected â€” reminder silently dropped
       }
     }, ms);
   },
 };
 
 /**
- * .emoji — Convert text to emoji art using letter emojis.
+ * .emoji â€” Convert text to emoji art using letter emojis.
  */
 export const emojiCommand: CommandPlugin = {
   name: 'emoji',
   aliases: ['emojify', 'letteremoji'],
   description: 'Convert text to emoji block art letters',
   category: 'fun',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 3,
   execute: async (ctx) => {
@@ -263,14 +263,14 @@ export const emojiCommand: CommandPlugin = {
 };
 
 /**
- * .roast — Friendly AI-powered roast of a mentioned user.
+ * .roast â€” Friendly AI-powered roast of a mentioned user.
  */
 export const roastCommand: CommandPlugin = {
   name: 'roast',
   aliases: ['burn', 'rekt'],
   description: 'Get a fun roast message (friendly humor, not offensive)',
   category: 'fun',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
@@ -279,30 +279,30 @@ export const roastCommand: CommandPlugin = {
       `${target}, you're the reason they put instructions on shampoo bottles.`,
       `${target}, if brains were dynamite, you couldn't blow your hat off.`,
       `${target}, I'd roast you harder, but my mom said I'm not allowed to burn trash.`,
-      `${target}, you're not stupid — you just have bad luck thinking.`,
-      `${target}, someday you'll go far… and I hope you stay there.`,
+      `${target}, you're not stupid â€” you just have bad luck thinking.`,
+      `${target}, someday you'll go farâ€¦ and I hope you stay there.`,
       `${target}, I'd call you a tool but that implies you're actually useful.`,
       `${target}, you're living proof that even nature makes mistakes.`,
       `${target}, if laughter is the best medicine, your face must be curing diseases.`,
-      `${target}, you have your entire life to be stupid — why not take a day off?`,
+      `${target}, you have your entire life to be stupid â€” why not take a day off?`,
       `${target}, even your WiFi connection has more personality than you.`,
       `${target}, you're the human equivalent of a participation award.`,
       `${target}, I've seen better looking things come out of a loot box on the last spin.`,
     ];
     const roast = roasts[Math.floor(Math.random() * roasts.length)];
-    await ctx.reply(`\u{1F525} *ROASTED:*\n\n_"${roast}"_\n\n_— Caldera Bot, with love \u2764\uFE0F_`);
+    await ctx.reply(`\u{1F525} *ROASTED:*\n\n_"${roast}"_\n\n_â€” Caldera Bot, with love \u2764\uFE0F_`);
   },
 };
 
 /**
- * .summarize — AI-powered TLDR summary of long text.
+ * .summarize â€” AI-powered TLDR summary of long text.
  */
 export const summarizeCommand: CommandPlugin = {
   name: 'summarize',
   aliases: ['tldr', 'sum', 'brief'],
   description: 'Summarize long text using AI (only if AI_ENABLED=true)',
   category: 'ai',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 8,
   execute: async (ctx) => {
@@ -352,7 +352,7 @@ export const summarizeCommand: CommandPlugin = {
 };
 
 /**
- * .imagine — AI image generation from text prompt.
+ * .imagine â€” AI image generation from text prompt.
  * Uses pollinations.ai (free, no API key needed) as primary.
  */
 export const imagineCommand: CommandPlugin = {
@@ -360,7 +360,7 @@ export const imagineCommand: CommandPlugin = {
   aliases: ['image', 'generate', 'img', 'draw'],
   description: 'Generate an AI image from a text prompt (e.g. .imagine sunset over mountains)',
   category: 'ai',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 15,
   execute: async (ctx) => {

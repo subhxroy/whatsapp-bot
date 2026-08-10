@@ -562,10 +562,13 @@ export class WhatsAppClient {
     const rawSenderPn = !key.fromMe ? this.getCachedSenderPn(key.id) : undefined;
     let phoneJid = primaryJid;
     let senderNumber = primaryJid.split('@')[0].split(':')[0];
+    // Whether senderNumber is a verified phone identity (used by authorization).
+    let senderResolved = true;
 
     if (rawSenderPn) {
       phoneJid = rawSenderPn;
       senderNumber = rawSenderPn.split('@')[0].split(':')[0].replace(/\D/g, '');
+      senderResolved = true;
       logger.info(
         {
           rawSenderPn,
@@ -594,6 +597,7 @@ export class WhatsAppClient {
       if (mappedPn) {
         phoneJid = `${mappedPn}@s.whatsapp.net`;
         senderNumber = mappedPn;
+        senderResolved = true;
         const env = getEnv();
         if (env.MESSAGE_LOGGING) {
           logger.info({ primaryJid, mappedPn, phoneJid }, '[LID] Resolved incoming message');
@@ -601,12 +605,20 @@ export class WhatsAppClient {
       } else if (key.remoteJid && key.remoteJid.includes('@s.whatsapp.net')) {
         phoneJid = key.remoteJid;
         senderNumber = phoneJid.split('@')[0].split(':')[0];
+        senderResolved = true;
       } else if (key.participant && key.participant.includes('@s.whatsapp.net')) {
         phoneJid = key.participant;
         senderNumber = phoneJid.split('@')[0].split(':')[0];
+        senderResolved = true;
+      } else {
+        // LID present but no phone mapping available — authorization MUST fail closed.
+        phoneJid = primaryJid;
+        senderNumber = primaryJid.split('@')[0].split(':')[0];
+        senderResolved = false;
       }
     } else {
       senderNumber = phoneJid.split('@')[0].split(':')[0];
+      senderResolved = true;
     }
 
     const senderJid = phoneJid;
@@ -626,6 +638,7 @@ export class WhatsAppClient {
       chatId: key.remoteJid,
       senderJid,
       senderNumber,
+      senderResolved,
       pushName: msg.pushName || undefined,
       fromMe: !!key.fromMe,
       isGroup: Boolean(isJidGroup(key.remoteJid)),

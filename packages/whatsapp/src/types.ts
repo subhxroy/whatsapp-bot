@@ -5,6 +5,9 @@ export interface NormalizedMessage {
   chatId: string;
   senderJid: string;
   senderNumber: string;
+  /** True when senderNumber is a verified phone identity (resolved from LID or explicit PN).
+   *  False when the sender could only be identified as an unresolved LID. */
+  senderResolved: boolean;
   pushName?: string;
   fromMe: boolean;
   isGroup: boolean;

@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 import { registry } from '../registry';
 
 export const menuCommand: CommandPlugin = {
@@ -7,7 +7,7 @@ export const menuCommand: CommandPlugin = {
   description: 'Display all 50+ available bot commands dynamically categorized',
   category: 'general',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg }: any) => {
     const activeMsg = msg || message;
@@ -24,34 +24,34 @@ export const menuCommand: CommandPlugin = {
     }
 
     const categoryIcons: Record<string, string> = {
-      ADMIN: '🛡️',
-      GROUP: '👥',
-      AI: '🤖',
-      UTILITY: '⚙️',
-      FUN: '🎲',
-      MEDIA: '🖼️',
-      GENERAL: '📱',
-      DOWNLOADER: '📥',
+      ADMIN: 'ðŸ›¡ï¸',
+      GROUP: 'ðŸ‘¥',
+      AI: 'ðŸ¤–',
+      UTILITY: 'âš™ï¸',
+      FUN: 'ðŸŽ²',
+      MEDIA: 'ðŸ–¼ï¸',
+      GENERAL: 'ðŸ“±',
+      DOWNLOADER: 'ðŸ“¥',
     };
 
-    let text = `🔥 *CALDERA BOT — COMMAND MENU*\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `• *Prefix:* \`.\`\n`;
-    text += `• *Total Commands:* ${commands.length} Plugins Active\n`;
-    text += `• *Status:* Connected & Operational\n`;
-    text += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    let text = `ðŸ”¥ *CALDERA BOT â€” COMMAND MENU*\n`;
+    text += `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n`;
+    text += `â€¢ *Prefix:* \`.\`\n`;
+    text += `â€¢ *Total Commands:* ${commands.length} Plugins Active\n`;
+    text += `â€¢ *Status:* Connected & Operational\n`;
+    text += `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n\n`;
 
     for (const [catName, cmdList] of Object.entries(categories)) {
-      const icon = categoryIcons[catName] || '📌';
+      const icon = categoryIcons[catName] || 'ðŸ“Œ';
       text += `${icon} *${catName} COMMANDS* (${cmdList.length})\n`;
       for (const cmd of cmdList) {
-        text += ` • \`.${cmd.name}\` — ${cmd.description}\n`;
+        text += ` â€¢ \`.${cmd.name}\` â€” ${cmd.description}\n`;
       }
       text += `\n`;
     }
 
-    text += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `💡 *Tip:* Use \`.ping\` to check latency or \`.system\` for server diagnostics.`;
+    text += `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n`;
+    text += `ðŸ’¡ *Tip:* Use \`.ping\` to check latency or \`.system\` for server diagnostics.`;
 
     await client.sendMessage(activeMsg.chatId, text);
   },

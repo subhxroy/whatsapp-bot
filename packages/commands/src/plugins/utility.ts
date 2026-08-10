@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 export const translateCommand: CommandPlugin = {
   name: 'translate',
@@ -6,19 +6,19 @@ export const translateCommand: CommandPlugin = {
   description: 'Translate text between languages (e.g. .tr es Hello world)',
   category: 'utility',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg, args }: any) => {
     const activeMsg = msg || message;
     if (!args || args.length === 0) {
-      await client.sendMessage(activeMsg.chatId, '⚠️ Usage: `.translate <target_lang> <text>` (e.g. `.tr es Hello world`)');
+      await client.sendMessage(activeMsg.chatId, 'âš ï¸ Usage: `.translate <target_lang> <text>` (e.g. `.tr es Hello world`)');
       return;
     }
     const targetLang = args[0].length === 2 ? args[0] : 'en';
     const textToTrans = args[0].length === 2 ? args.slice(1).join(' ') : args.join(' ');
 
     if (!textToTrans) {
-      await client.sendMessage(activeMsg.chatId, '⚠️ Please provide text to translate.');
+      await client.sendMessage(activeMsg.chatId, 'âš ï¸ Please provide text to translate.');
       return;
     }
 
@@ -30,10 +30,10 @@ export const translateCommand: CommandPlugin = {
 
       await client.sendMessage(
         activeMsg.chatId,
-        `🌐 *Translation (${targetLang.toUpperCase()}):*\n\n${translatedText}`
+        `ðŸŒ *Translation (${targetLang.toUpperCase()}):*\n\n${translatedText}`
       );
     } catch {
-      await client.sendMessage(activeMsg.chatId, '❌ Translation failed. Please check the language code.');
+      await client.sendMessage(activeMsg.chatId, 'âŒ Translation failed. Please check the language code.');
     }
   },
 };
@@ -44,7 +44,7 @@ export const weatherCommand: CommandPlugin = {
   description: 'Check current weather report for any city',
   category: 'utility',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg, args }: any) => {
     const activeMsg = msg || message;
@@ -63,15 +63,15 @@ export const weatherCommand: CommandPlugin = {
       const humidity = current.humidity;
       const windSpeed = current.windspeedKmph;
 
-      const report = `🌤️ *Weather Report for ${locationName}*\n\n` +
-        `• *Condition:* ${desc}\n` +
-        `• *Temperature:* ${tempC}°C (${tempF}°F)\n` +
-        `• *Humidity:* ${humidity}%\n` +
-        `• *Wind Speed:* ${windSpeed} km/h`;
+      const report = `ðŸŒ¤ï¸ *Weather Report for ${locationName}*\n\n` +
+        `â€¢ *Condition:* ${desc}\n` +
+        `â€¢ *Temperature:* ${tempC}Â°C (${tempF}Â°F)\n` +
+        `â€¢ *Humidity:* ${humidity}%\n` +
+        `â€¢ *Wind Speed:* ${windSpeed} km/h`;
 
       await client.sendMessage(activeMsg.chatId, report);
     } catch {
-      await client.sendMessage(activeMsg.chatId, `🌤️ *Weather for ${city}:* Clear 26°C, Humidity 55%, Wind 12 km/h`);
+      await client.sendMessage(activeMsg.chatId, `ðŸŒ¤ï¸ *Weather for ${city}:* Clear 26Â°C, Humidity 55%, Wind 12 km/h`);
     }
   },
 };
@@ -82,13 +82,13 @@ export const dictCommand: CommandPlugin = {
   description: 'Look up dictionary word definitions and synonyms',
   category: 'utility',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg, args }: any) => {
     const activeMsg = msg || message;
     const word = args[0]?.trim();
     if (!word) {
-      await client.sendMessage(activeMsg.chatId, '📖 Usage: `.dict <word>` (e.g. `.dict ephemeral`)');
+      await client.sendMessage(activeMsg.chatId, 'ðŸ“– Usage: `.dict <word>` (e.g. `.dict ephemeral`)');
       return;
     }
 
@@ -101,13 +101,13 @@ export const dictCommand: CommandPlugin = {
       const definition = entry.meanings[0]?.definitions[0]?.definition || 'No definition found.';
       const example = entry.meanings[0]?.definitions[0]?.example || null;
 
-      let reply = `📖 *Dictionary Definition: ${entry.word}* (${partOfSpeech})\n\n` +
-        `• *Definition:* ${definition}`;
-      if (example) reply += `\n• *Example:* "${example}"`;
+      let reply = `ðŸ“– *Dictionary Definition: ${entry.word}* (${partOfSpeech})\n\n` +
+        `â€¢ *Definition:* ${definition}`;
+      if (example) reply += `\nâ€¢ *Example:* "${example}"`;
 
       await client.sendMessage(activeMsg.chatId, reply);
     } catch {
-      await client.sendMessage(activeMsg.chatId, `📖 *Dictionary:* Word '${word}' not found.`);
+      await client.sendMessage(activeMsg.chatId, `ðŸ“– *Dictionary:* Word '${word}' not found.`);
     }
   },
 };
@@ -118,22 +118,22 @@ export const shortenCommand: CommandPlugin = {
   description: 'Shorten long URLs into tiny links',
   category: 'utility',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg, args }: any) => {
     const activeMsg = msg || message;
     const targetUrl = args[0]?.trim();
     if (!targetUrl || !targetUrl.startsWith('http')) {
-      await client.sendMessage(activeMsg.chatId, '🔗 Usage: `.shorten <http_url>` (e.g. `.shorten https://google.com`)');
+      await client.sendMessage(activeMsg.chatId, 'ðŸ”— Usage: `.shorten <http_url>` (e.g. `.shorten https://google.com`)');
       return;
     }
 
     try {
       const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(targetUrl)}`);
       const shortUrl = await res.text();
-      await client.sendMessage(activeMsg.chatId, `🔗 *Shortened Link:*\n${shortUrl}`);
+      await client.sendMessage(activeMsg.chatId, `ðŸ”— *Shortened Link:*\n${shortUrl}`);
     } catch {
-      await client.sendMessage(activeMsg.chatId, '❌ Failed to shorten URL.');
+      await client.sendMessage(activeMsg.chatId, 'âŒ Failed to shorten URL.');
     }
   },
 };
@@ -144,7 +144,7 @@ export const qrcodeCommand: CommandPlugin = {
   description: 'Generate QR code image from text or URL',
   category: 'utility',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async (ctx) => {
     const text = ctx.args.join(' ').trim();

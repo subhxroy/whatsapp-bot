@@ -1,7 +1,7 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 /**
- * Safe math expression evaluator — no eval, no new Function().
+ * Safe math expression evaluator â€” no eval, no new Function().
  * Supports: +, -, *, /, %, ** (^), (), unary minus, decimal numbers.
  * 
  * Uses a recursive descent parser so there is zero code injection risk.
@@ -90,7 +90,7 @@ export const calcCommand: CommandPlugin = {
   aliases: ['math', 'calculate', '='],
   description: 'Safely evaluate mathematical expressions',
   category: 'utility',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 2,
   execute: async (ctx) => {

@@ -8,6 +8,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { getEnv } from '@private-md-bot/config';
+import { db } from '@private-md-bot/database';
 import { SessionManager } from './session-manager';
 
 import { registerHealthRoutes } from './routes/health';
@@ -30,6 +31,16 @@ declare module 'fastify' {
 
 export async function buildServer() {
   const env = getEnv();
+
+  // SECURITY: never allow the default JWT secret in production — anyone who knows
+  // the default can forge an OWNER-role dashboard token and take over the bot.
+  const DEFAULT_JWT_SECRET = 'super_secret_jwt_key_change_in_production_32bytes_minimum';
+  if (env.NODE_ENV === 'production' && env.JWT_SECRET === DEFAULT_JWT_SECRET) {
+    throw new Error(
+      'Refusing to start in production with the default JWT_SECRET. ' +
+      'Set a strong random JWT_SECRET environment variable (e.g. `openssl rand -hex 32`).'
+    );
+  }
 
   const fastify = Fastify({
     logger: {
@@ -86,6 +97,23 @@ export async function buildServer() {
     try {
       await request.jwtVerify();
     } catch (err) {
+      reply.status(401).send({ error: 'Unauthorized' });
+      return;
+    }
+
+    // SECURITY: never trust the role claim from the token alone — always reload the
+    // user from the database so role changes/revocations take effect immediately.
+    const claims = request.user || {};
+    const dbUser = await db.findUserById(claims.id || '').catch(() => null);
+    if (dbUser) {
+      request.user = {
+        ...claims,
+        id: dbUser.id,
+        username: dbUser.username,
+        role: dbUser.role,
+        email: dbUser.username,
+      };
+    } else if (!claims.id) {
       reply.status(401).send({ error: 'Unauthorized' });
     }
   });

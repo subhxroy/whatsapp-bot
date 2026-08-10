@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 const extractViewOnce = (content: any): any => {
   if (!content) return null;
@@ -22,7 +22,7 @@ export const vvCommand: CommandPlugin = {
   aliases: ['avv'],
   description: 'Silently reveal view-once media by replying to it',
   category: 'media',
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
@@ -31,7 +31,7 @@ export const vvCommand: CommandPlugin = {
     const quotedId = contextInfo?.stanzaId;
 
     if (!quotedContent) {
-      return await ctx.reply('❌ Reply to a view-once image, video, or audio message with `.vv` to reveal it.');
+      return await ctx.reply('âŒ Reply to a view-once image, video, or audio message with `.vv` to reveal it.');
     }
 
     // Prefer the originally received message (keeps full media keys/directPath,
@@ -56,7 +56,7 @@ export const vvCommand: CommandPlugin = {
 
     const mediaType = getMediaType(inner);
     if (!mediaType) {
-      return await ctx.reply('❌ Quoted message is not view-once media (image, video, or audio).');
+      return await ctx.reply('âŒ Quoted message is not view-once media (image, video, or audio).');
     }
 
     try {
@@ -65,11 +65,11 @@ export const vvCommand: CommandPlugin = {
         : await ctx.client.downloadMediaFromContent(inner);
 
       await ctx.replyMedia(buffer, mediaType, {
-        caption: mediaType !== 'audio' ? '🔓 Revealed view-once message' : undefined,
+        caption: mediaType !== 'audio' ? 'ðŸ”“ Revealed view-once message' : undefined,
       });
     } catch (err: any) {
       await ctx.reply(
-        `❌ Failed to reveal view-once media: ${err.message || 'Media expired or download failed'}`
+        `âŒ Failed to reveal view-once media: ${err.message || 'Media expired or download failed'}`
       );
     }
   },

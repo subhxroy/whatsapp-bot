@@ -1,4 +1,4 @@
-import { CommandPlugin } from '../types';
+﻿import { CommandPlugin } from '../types';
 
 export const rollCommand: CommandPlugin = {
   name: 'roll',
@@ -6,7 +6,7 @@ export const rollCommand: CommandPlugin = {
   description: 'Roll a random dice (1-6) or custom dice (e.g. .roll d20)',
   category: 'fun',
   cooldown: 2,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg, args }: any) => {
     const activeMsg = msg || message;
@@ -17,7 +17,7 @@ export const rollCommand: CommandPlugin = {
       max = parseInt(args[0], 10) || 6;
     }
     const result = Math.floor(Math.random() * max) + 1;
-    await client.sendMessage(activeMsg.chatId, `🎲 *Dice Roll (1-${max}):* You rolled a *${result}*!`);
+    await client.sendMessage(activeMsg.chatId, `ðŸŽ² *Dice Roll (1-${max}):* You rolled a *${result}*!`);
   },
 };
 
@@ -27,12 +27,12 @@ export const flipCommand: CommandPlugin = {
   description: 'Flip a coin (Heads or Tails)',
   category: 'fun',
   cooldown: 2,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg }: any) => {
     const activeMsg = msg || message;
-    const outcome = Math.random() < 0.5 ? 'HEADS 🪙' : 'TAILS 🪙';
-    await client.sendMessage(activeMsg.chatId, `🪙 *Coin Flip:* Result is *${outcome}*!`);
+    const outcome = Math.random() < 0.5 ? 'HEADS ðŸª™' : 'TAILS ðŸª™';
+    await client.sendMessage(activeMsg.chatId, `ðŸª™ *Coin Flip:* Result is *${outcome}*!`);
   },
 };
 
@@ -42,7 +42,7 @@ export const quoteCommand: CommandPlugin = {
   description: 'Get an inspiring random quote',
   category: 'fun',
   cooldown: 2,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg }: any) => {
     const activeMsg = msg || message;
@@ -54,7 +54,7 @@ export const quoteCommand: CommandPlugin = {
       { q: "Action is the foundational key to all success.", a: "Pablo Picasso" }
     ];
     const item = quotes[Math.floor(Math.random() * quotes.length)];
-    await client.sendMessage(activeMsg.chatId, `💬 "${item.q}"\n\n— *${item.a}*`);
+    await client.sendMessage(activeMsg.chatId, `ðŸ’¬ "${item.q}"\n\nâ€” *${item.a}*`);
   },
 };
 
@@ -64,7 +64,7 @@ export const jokeCommand: CommandPlugin = {
   description: 'Get a funny joke',
   category: 'fun',
   cooldown: 2,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg }: any) => {
     const activeMsg = msg || message;
@@ -76,7 +76,7 @@ export const jokeCommand: CommandPlugin = {
       "What is a programmer's favorite place to hang out? Foo Bar!"
     ];
     const joke = jokes[Math.floor(Math.random() * jokes.length)];
-    await client.sendMessage(activeMsg.chatId, `😂 *Joke of the day:*\n\n${joke}`);
+    await client.sendMessage(activeMsg.chatId, `ðŸ˜‚ *Joke of the day:*\n\n${joke}`);
   },
 };
 
@@ -86,7 +86,7 @@ export const triviaCommand: CommandPlugin = {
   description: 'Get a random trivia question with answer',
   category: 'fun',
   cooldown: 3,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg }: any) => {
     const activeMsg = msg || message;
@@ -98,7 +98,7 @@ export const triviaCommand: CommandPlugin = {
       { q: "What is the largest ocean on Earth?", a: "Pacific Ocean" }
     ];
     const t = triviaList[Math.floor(Math.random() * triviaList.length)];
-    await client.sendMessage(activeMsg.chatId, `🧠 *Trivia Question:*\n\n${t.q}\n\n*Answer:* ||${t.a}||`);
+    await client.sendMessage(activeMsg.chatId, `ðŸ§  *Trivia Question:*\n\n${t.q}\n\n*Answer:* ||${t.a}||`);
   },
 };
 
@@ -108,7 +108,7 @@ export const factCommand: CommandPlugin = {
   description: 'Get an interesting random fun fact',
   category: 'fun',
   cooldown: 2,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg }: any) => {
     const activeMsg = msg || message;
@@ -120,7 +120,7 @@ export const factCommand: CommandPlugin = {
       "Wombat poop is cube-shaped to stop it from rolling away!"
     ];
     const fact = facts[Math.floor(Math.random() * facts.length)];
-    await client.sendMessage(activeMsg.chatId, `💡 *Fun Fact:*\n\n${fact}`);
+    await client.sendMessage(activeMsg.chatId, `ðŸ’¡ *Fun Fact:*\n\n${fact}`);
   },
 };
 
@@ -130,12 +130,12 @@ export const eightBallCommand: CommandPlugin = {
   description: 'Ask the Magic 8-Ball any question',
   category: 'fun',
   cooldown: 2,
-  ownerOnly: false,
+  ownerOnly: true,
   enabled: true,
   execute: async ({ client, msg, message = msg, args }: any) => {
     const activeMsg = msg || message;
     if (!args || args.length === 0) {
-      await client.sendMessage(activeMsg.chatId, '🎱 Usage: `.8ball <question>` (e.g. `.8ball Will today be a great day?`)');
+      await client.sendMessage(activeMsg.chatId, 'ðŸŽ± Usage: `.8ball <question>` (e.g. `.8ball Will today be a great day?`)');
       return;
     }
 
@@ -153,6 +153,6 @@ export const eightBallCommand: CommandPlugin = {
     ];
 
     const ans = responses[Math.floor(Math.random() * responses.length)];
-    await client.sendMessage(activeMsg.chatId, `🎱 *Magic 8-Ball says:* "${ans}"`);
+    await client.sendMessage(activeMsg.chatId, `ðŸŽ± *Magic 8-Ball says:* "${ans}"`);
   },
 };
