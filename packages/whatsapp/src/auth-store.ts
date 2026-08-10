@@ -4,11 +4,21 @@ import { encryptData, decryptData } from '@private-md-bot/security';
 
 export async function hasSavedSession(sessionKey = 'default_session'): Promise<boolean> {
   try {
-    const record = await db.getSession(`${sessionKey}_creds`);
-    if (!record) return false;
-    const decrypted = decryptData(record.encryptedData);
-    const parsed = JSON.parse(decrypted, BufferJSON.reviver);
-    return !!(parsed && (parsed.me || parsed.myJid));
+    const keysToCheck = [
+      sessionKey,
+      sessionKey.startsWith('user_') ? sessionKey.replace(/^user_/, '') : `user_${sessionKey}`,
+    ];
+    for (const key of keysToCheck) {
+      const record = await db.getSession(`${key}_creds`);
+      if (record) {
+        const decrypted = decryptData(record.encryptedData);
+        const parsed = JSON.parse(decrypted, BufferJSON.reviver);
+        if (parsed && (parsed.me || parsed.myJid)) {
+          return true;
+        }
+      }
+    }
+    return false;
   } catch {
     return false;
   }

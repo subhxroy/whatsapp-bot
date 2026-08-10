@@ -7,6 +7,7 @@ export const aiCommand: CommandPlugin = {
   aliases: ['ask', 'gemini', 'gpt'],
   description: 'Ask AI assistant a question (Opt-in required via server config)',
   category: 'ai',
+  ownerOnly: true,
   cooldown: 5,
   enabled: true,
   execute: async (ctx) => {

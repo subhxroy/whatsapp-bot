@@ -5,6 +5,7 @@ export const antilinkCommand: CommandPlugin = {
   aliases: ['linkprotect'],
   description: 'Toggle anti-link group protection mode (Admin-Only)',
   category: 'group',
+  ownerOnly: true,
   cooldown: 5,
   groupOnly: true,
   adminOnly: true,

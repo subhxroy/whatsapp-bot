@@ -5,6 +5,7 @@ export const aboutCommand: CommandPlugin = {
   aliases: ['info', 'version'],
   description: 'Display architecture details, security policies, and software specifications',
   category: 'general',
+  ownerOnly: true,
   cooldown: 3,
   enabled: true,
   execute: async (ctx) => {

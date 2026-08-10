@@ -229,9 +229,10 @@ export class SessionManager {
         if (!allowed) continue;
 
         const userId = user.username || user.id;
+        const sessionKey = userId.startsWith('user_') ? userId : `user_${userId}`;
         // Only auto-connect users on startup who ALREADY have an authenticated WhatsApp session saved in Firestore.
         // Users without saved credentials will connect on-demand when they open the dashboard or request a QR/pairing code.
-        const hasSession = await hasSavedSession(userId);
+        const hasSession = await hasSavedSession(sessionKey);
         if (!hasSession) continue;
 
         try {

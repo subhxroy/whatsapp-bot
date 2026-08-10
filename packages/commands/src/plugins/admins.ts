@@ -5,6 +5,7 @@ export const adminsCommand: CommandPlugin = {
   aliases: ['adminlist', 'tagadmins'],
   description: 'List all group administrators (Group-Only)',
   category: 'group',
+  ownerOnly: true,
   cooldown: 5,
   groupOnly: true,
   enabled: true,
