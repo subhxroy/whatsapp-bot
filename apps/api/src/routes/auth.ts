@@ -196,6 +196,7 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
         isAdmin: adminCheck,
         totpEnabled: user.totpEnabled,
         createdAt: user.createdAt,
+        connectedPhone: user.connectedPhone ?? null,
       },
     };
   });

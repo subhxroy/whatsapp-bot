@@ -55,6 +55,18 @@ export class SessionManager {
       client.onHistoryMessage(async (event) => {
         this.bufferHistory(userId, event);
       });
+      // Persist the connected WhatsApp phone number to the user record
+      // so it can be shown per-user in the dashboard settings.
+      client.onStatusChange(async (status) => {
+        if (status === 'CONNECTED') {
+          const phone = client!.getConnectedPhone();
+          if (phone) {
+            db.setUserConnectedPhone(userId, phone).catch((err) =>
+              logger.error({ err, userId }, 'Failed to persist connected phone')
+            );
+          }
+        }
+      });
       this.sessions.set(userId, client);
       logger.info({ userId }, 'Created new WhatsApp session with command dispatcher');
     }
@@ -83,10 +95,10 @@ export class SessionManager {
     this.sessions.delete(userId);
   }
 
-  getStatus(userId: string): { status: string; qrCode: string | null } {
+  getStatus(userId: string): { status: string; qrCode: string | null; connectedPhone: string | null } {
     const client = this.sessions.get(userId);
-    if (!client) return { status: 'DISCONNECTED', qrCode: null };
-    return { status: client.getStatus(), qrCode: client.getQRCode() };
+    if (!client) return { status: 'DISCONNECTED', qrCode: null, connectedPhone: null };
+    return { status: client.getStatus(), qrCode: client.getQRCode(), connectedPhone: client.getConnectedPhone() };
   }
 
   isConnected(userId: string): boolean {

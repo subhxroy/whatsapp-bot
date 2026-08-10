@@ -16,6 +16,7 @@ export interface User {
   totpEnabled: boolean;
   googleUid: string | null;
   role: string;
+  connectedPhone?: string | null; // WhatsApp phone number (digits only) of the connected account
   createdAt: string;
   updatedAt: string;
 }
@@ -440,6 +441,12 @@ export const db = {
   async setUserGoogleUid(username: string, googleUid: string): Promise<void> {
     return withRetry(async () => {
       await users().doc(username).set({ googleUid }, { merge: true });
+    });
+  },
+
+  async setUserConnectedPhone(username: string, phone: string): Promise<void> {
+    return withRetry(async () => {
+      await users().doc(username).set({ connectedPhone: phone, updatedAt: nowIso() }, { merge: true });
     });
   },
 

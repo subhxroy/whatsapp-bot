@@ -7,10 +7,11 @@ export default function SettingsPage() {
   const [prefix, setPrefix] = useState('.');
   const [logging, setLogging] = useState(false);
   const [ownerNumber, setOwnerNumber] = useState('');
+  const [connectedPhone, setConnectedPhone] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
-  const [isAdmin, setIsAdmin] = useState<boolean>(true);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -18,8 +19,12 @@ export default function SettingsPage() {
       .then((data) => {
         const user = data?.user;
         if (user) {
-          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER';
+          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER' || user.isAdmin === true;
           setIsAdmin(adminCheck);
+          // Each user's connected WhatsApp number comes from their own session record
+          if (user.connectedPhone) {
+            setConnectedPhone(user.connectedPhone);
+          }
         }
       })
       .catch(() => {});
@@ -38,6 +43,8 @@ export default function SettingsPage() {
 
         setPrefix(map.COMMAND_PREFIX || data.settings?.find((s: { key: string }) => s.key === 'prefix')?.value || '.');
         setLogging(map.MESSAGE_LOGGING === 'true' || data.environment?.messageLogging || false);
+        // BOT_OWNER_NUMBER from settings is the global admin owner — only relevant to admins.
+        // Non-admins see their own connectedPhone (set above from /api/auth/me).
         setOwnerNumber(map.BOT_OWNER_NUMBER || data.environment?.ownerNumber || '');
       });
   }, []);
@@ -122,21 +129,33 @@ export default function SettingsPage() {
 
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-[#070607]/70">
-                Bot Owner Phone Number
+                {isAdmin ? 'Bot Owner Phone Number' : 'Your Connected WhatsApp Number'}
               </label>
-              <input
-                type="text"
-                value={ownerNumber}
-                onChange={(e) => setOwnerNumber(e.target.value)}
-                placeholder="e.g. 919876543210"
-                className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#e2e2df] py-3.5 px-6 text-sm font-mono text-[#070607] placeholder-[#070607]/40 focus:border-[#fc5000] focus:outline-none"
-              />
-              <div className="mt-3 rounded-[20px] bg-[#f5f28e]/80 p-3.5 text-xs text-[#070607]">
-                <span className="font-bold block uppercase tracking-wider text-[10px] text-[#070607]">ℹ️ What is Bot Owner Number?</span>
-                <p className="mt-1 font-medium leading-relaxed">
-                  Enter your personal WhatsApp phone number with country code (e.g. <code className="font-bold">919876543210</code>). High-privilege owner commands (<code className="font-bold">.exec</code>, <code className="font-bold">.eval</code>, <code className="font-bold">.restart</code>, <code className="font-bold">.broadcast</code>) check this number to verify master admin rights.
-                </p>
-              </div>
+              {isAdmin ? (
+                <>
+                  <input
+                    type="text"
+                    value={ownerNumber}
+                    onChange={(e) => setOwnerNumber(e.target.value)}
+                    placeholder="e.g. 919876543210"
+                    className="w-full rounded-full border-1.5 border-[#070607]/20 bg-[#e2e2df] py-3.5 px-6 text-sm font-mono text-[#070607] placeholder-[#070607]/40 focus:border-[#fc5000] focus:outline-none"
+                  />
+                  <div className="mt-3 rounded-[20px] bg-[#f5f28e]/80 p-3.5 text-xs text-[#070607]">
+                    <span className="font-bold block uppercase tracking-wider text-[10px] text-[#070607]">ℹ️ What is Bot Owner Number?</span>
+                    <p className="mt-1 font-medium leading-relaxed">
+                      Enter your personal WhatsApp phone number with country code (e.g. <code className="font-bold">919876543210</code>). High-privilege owner commands (<code className="font-bold">.exec</code>, <code className="font-bold">.eval</code>, <code className="font-bold">.restart</code>, <code className="font-bold">.broadcast</code>) check this number to verify master admin rights.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full rounded-full border-1.5 border-[#070607]/10 bg-[#e2e2df] py-3.5 px-6 text-sm font-mono text-[#070607]">
+                  {connectedPhone ? `+${connectedPhone}` : (
+                    <span className="text-[#070607]/40 italic">
+                      Not connected yet — connect WhatsApp to see your number
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

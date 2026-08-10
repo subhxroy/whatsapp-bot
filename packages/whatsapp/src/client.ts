@@ -47,6 +47,7 @@ export class WhatsAppClient {
   private processedMsgIds: Set<string> = new Set();
   private sessionKey: string;
   private userId: string | null = null;
+  private connectedPhone: string | null = null;
   private lidToPnMap = new Map<string, string>();
   private pnToLidMap = new Map<string, string>();
 
@@ -65,6 +66,13 @@ export class WhatsAppClient {
 
   public getUserId(): string | null {
     return this.userId;
+  }
+
+  /** The phone number (digits only, with country code) of the connected WhatsApp account.
+   * Only populated after a successful connection (connection === 'open').
+   */
+  public getConnectedPhone(): string | null {
+    return this.connectedPhone;
   }
 
   public registerLidMapping(lid?: string, pnJid?: string): void {
@@ -273,6 +281,14 @@ export class WhatsAppClient {
         } else if (connection === 'open') {
           logger.info('WhatsApp connection successfully established');
           this.reconnectAttempts = 0;
+          // Capture the connected WhatsApp phone number for per-user settings.
+          // socket.user?.id is a JID like "919864149429:12@s.whatsapp.net"
+          const rawJid = this.socket?.user?.id ?? '';
+          const phoneDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '');
+          if (phoneDigits) {
+            this.connectedPhone = phoneDigits;
+            logger.info({ phone: phoneDigits }, 'Connected WhatsApp phone captured');
+          }
           this.setStatus('CONNECTED');
         }
       });
