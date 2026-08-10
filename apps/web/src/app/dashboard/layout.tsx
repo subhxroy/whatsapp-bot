@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then((data) => {
         const user = data?.user;
         if (user) {
-          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER';
+          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER' || user.isAdmin === true;
           setIsAdmin(adminCheck);
           sessionStorage.setItem('caldera_is_admin', String(adminCheck));
         } else {

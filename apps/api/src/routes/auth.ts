@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getAuth } from 'firebase-admin/auth';
 import { db, getDb } from '@private-md-bot/database';
-import { hashPassword, verifyPassword } from '@private-md-bot/security';
+import { hashPassword, verifyPassword, isAdminUser } from '@private-md-bot/security';
 import { logAudit } from '../queue';
 
 const USERNAME_RE = /^[A-Za-z0-9._@+-]+$/;
@@ -186,11 +186,14 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
     if (!user) {
       return { user: null };
     }
+    const adminCheck = isAdminUser({ ...user, email: user.username });
+    const effectiveRole = adminCheck && user.role !== 'OWNER' && user.role !== 'ADMIN' ? 'ADMIN' : user.role;
     return {
       user: {
         id: user.id,
         username: user.username,
-        role: user.role,
+        role: effectiveRole,
+        isAdmin: adminCheck,
         totpEnabled: user.totpEnabled,
         createdAt: user.createdAt,
       },

@@ -1,5 +1,6 @@
 import type { FastifyReply } from 'fastify';
 import { db } from '@private-md-bot/database';
+import { isAdminUser } from '@private-md-bot/security';
 
 export interface GateUser {
   id?: string;
@@ -26,7 +27,7 @@ export async function canConnectWhatsApp(
   resolveStatus: PaymentStatusResolver = (identifier) => db.getUserPaymentStatus(identifier)
 ): Promise<boolean> {
   if (!user) return false;
-  if (user.role === 'OWNER' || user.role === 'ADMIN') return true;
+  if (isAdminUser(user)) return true;
   const identifier = user.email || user.username || user.id || '';
   if (!identifier) return false;
   try {

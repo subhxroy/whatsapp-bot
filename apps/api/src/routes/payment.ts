@@ -18,11 +18,15 @@ const submitPaymentSchema = z.object({
 export async function registerPaymentRoutes(fastify: FastifyInstance, sessionManager: SessionManager) {
   // Get payment status for current authenticated user
   fastify.get('/api/payment/status', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const user = request.user as { username?: string; email?: string; id?: string };
+    const user = request.user as { username?: string; email?: string; id?: string; role?: string };
     const userIdentifier = user?.email || user?.username || user?.id || '';
 
     if (!userIdentifier) {
       return reply.status(400).send({ error: 'User identifier not found' });
+    }
+
+    if (isAdminUser(user)) {
+      return reply.send({ isApproved: true, status: 'APPROVED' });
     }
 
     const status = await db.getUserPaymentStatus(userIdentifier);
