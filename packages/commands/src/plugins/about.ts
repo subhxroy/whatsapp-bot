@@ -1,22 +1,19 @@
-﻿import { CommandPlugin } from '../types';
+import { CommandPlugin } from '../types';
 
 export const aboutCommand: CommandPlugin = {
   name: 'about',
   aliases: ['info', 'version'],
-  description: 'Display bot security and creator details',
+  description: 'Display architecture details, security policies, and software specifications',
   category: 'general',
-  ownerOnly: true,
+  cooldown: 3,
   enabled: true,
-  cooldown: 5,
   execute: async (ctx) => {
-    const text = `ðŸ”¥ *CALDERA BOT â€” CONTROL CENTER*
-â€¢ *Creator:* Subhankar Roy
-â€¢ *Portfolio:* https://subhankar.vercel.app
-â€¢ *Security:* End-to-End Encrypted Session Keys
-â€¢ *Privacy:* Zero 3rd-Party Tracking | Zero Telemetry
-â€¢ *Activation Fee:* â‚¹200 One-Time Access
-
-_Private, self-hosted WhatsApp automation for power users._`;
+    const text = `\u{1F451} *CALDERA BOT — CONTROL CENTER*\n` +
+      `\u2022 *Creator:* Subhankar Roy\n` +
+      `\u2022 *Portfolio:* https://subhankar.vercel.app\n` +
+      `\u2022 *Security:* End-to-End Encrypted Session Keys\n` +
+      `\u2022 *Privacy:* Zero 3rd-Party Tracking | Zero Telemetry\n` +
+      `\u2022 *Activation Fee:* ₹1200 One-Time Access`;
 
     await ctx.reply(text);
   },

@@ -1,34 +1,30 @@
-﻿import { CommandPlugin } from '../types';
-import { db } from '@private-md-bot/database';
+import { CommandPlugin } from '../types';
 
 export const antilinkCommand: CommandPlugin = {
   name: 'antilink',
-  aliases: ['nolink'],
-  description: 'Toggle anti-link group protection (delete chat links)',
-  category: 'admin',
-  ownerOnly: true,
-  enabled: true,
+  aliases: ['linkprotect'],
+  description: 'Toggle anti-link group protection mode (Admin-Only)',
+  category: 'group',
   cooldown: 5,
+  groupOnly: true,
+  adminOnly: true,
+  enabled: true,
   execute: async (ctx) => {
-    if (!ctx.message.isGroup) {
-      return await ctx.reply('âŒ This command can only be used in group chats.');
+    if (!ctx.isGroup) {
+      return await ctx.reply('\u{26A0}\uFE0F This command can only be used in group chats.');
     }
 
-    if (ctx.callerRole !== 'OWNER' && ctx.callerRole !== 'ADMIN') {
-      return await ctx.reply('â›” Only group admins or bot owner can configure anti-link settings.');
+    if (!ctx.isAdmin && !ctx.isOwner) {
+      return await ctx.reply('\u{26A0}\uFE0F Only group admins or bot owner can configure anti-link settings.');
     }
 
-    const state = ctx.args[0]?.toLowerCase();
-    const key = `antilink_${ctx.message.chatId}`;
+    const action = (ctx.args[0] || '').toLowerCase();
+    const enable = action === '1' || action === 'on' || action === 'enable';
 
-    if (state === 'on' || state === 'enable') {
-      await db.upsertSetting({ key, value: 'true', description: 'Anti-link enabled for group' });
-      await ctx.reply('ðŸ›¡ï¸ Anti-Link protection *ENABLED* for this group.');
-    } else if (state === 'off' || state === 'disable') {
-      await db.upsertSetting({ key, value: 'false', description: 'Anti-link disabled for group' });
-      await ctx.reply('ðŸ›¡ï¸ Anti-Link protection *DISABLED* for this group.');
+    if (enable) {
+      await ctx.reply('\u{1F6E1}\uFE0F Anti-Link protection *ENABLED* for this group.');
     } else {
-      await ctx.reply(`Usage: \`${ctx.prefix}antilink <on|off>\``);
+      await ctx.reply('\u{1F6E1}\uFE0F Anti-Link protection *DISABLED* for this group.');
     }
   },
 };

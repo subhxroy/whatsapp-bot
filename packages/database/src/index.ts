@@ -8,6 +8,17 @@ import { mostRecentPaymentRequest } from './payment-utils';
 export type MatchType = 'EXACT' | 'CONTAINS' | 'STARTS_WITH' | 'ENDS_WITH' | 'REGEX' | 'ANY';
 export type Role = 'PUBLIC' | 'ADMIN' | 'OWNER';
 
+/** Helper to strip undefined properties before writing to Firestore (which rejects undefined). */
+export function cleanData<T extends Record<string, any>>(obj: T): T {
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      clean[key] = obj[key];
+    }
+  }
+  return clean as T;
+}
+
 export interface User {
   id: string;
   username: string;
@@ -802,31 +813,32 @@ export const db = {
   async createScheduledMessage(data: {
     userId?: string | null;
     targetNumber: string;
-    targetJid: string;
+    targetJid?: string;
     message: string;
     scheduledAt: string;
-    senderJid: string;
+    senderJid?: string;
     type?: 'BIRTHDAY' | 'SCHEDULED';
     title?: string;
   }): Promise<ScheduledMessage> {
     return withRetry(async () => {
       const now = nowIso();
       const ref = scheduledCol().doc();
-      const record: ScheduledMessage = {
+      const cleanNum = data.targetNumber.replace(/\D/g, '');
+      const record: ScheduledMessage = cleanData({
         id: ref.id,
         userId: data.userId ?? null,
-        targetNumber: data.targetNumber,
-        targetJid: data.targetJid,
+        targetNumber: cleanNum,
+        targetJid: data.targetJid || `${cleanNum}@s.whatsapp.net`,
         message: data.message,
         scheduledAt: data.scheduledAt,
-        senderJid: data.senderJid,
+        senderJid: data.senderJid || '',
         type: data.type || 'SCHEDULED',
         status: 'PENDING',
         deliveryAttempts: 0,
         createdAt: now,
         updatedAt: now,
-      };
-      if (data.title) record.title = data.title;
+        title: data.title || undefined,
+      });
       await ref.set(record);
       return record;
     });
@@ -1132,7 +1144,7 @@ export const db = {
   }): Promise<MessageEvent> {
     return withRetry(async () => {
       const ref = messageEventsCol().doc();
-      const record: MessageEvent = {
+      const record: MessageEvent = cleanData({
         id: ref.id,
         scheduleId: data.scheduleId,
         userId: data.userId ?? null,
@@ -1144,7 +1156,7 @@ export const db = {
         messageId: data.messageId,
         targetNumber: data.targetNumber,
         timestamp: nowIso(),
-      };
+      });
       await ref.set(record);
       return record;
     });

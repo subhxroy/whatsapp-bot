@@ -19,8 +19,10 @@ export function startMessageScheduler(sessionManager: SessionManager) {
       const claimed = await db.claimScheduledMessage(item.id);
       if (!claimed) continue;
 
-      const senderEmail = claimed.senderJid?.split('@')[0] || '';
-      const client = sessionManager.get(senderEmail) || sessionManager.getClientForMessage(claimed.senderJid);
+      const userId = claimed.userId || '';
+      const client =
+        (userId ? sessionManager.get(userId) : undefined) ||
+        (claimed.senderJid ? sessionManager.getClientForMessage(claimed.senderJid) : undefined);
 
       if (!client || client.getStatus() !== 'CONNECTED') {
         // Session unavailable — put back in the deliverable pool for the next tick.

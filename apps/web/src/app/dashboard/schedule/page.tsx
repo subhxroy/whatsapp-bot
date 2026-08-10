@@ -286,7 +286,23 @@ export default function SchedulePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetNumber.trim() || !selectedDate || !selectedTime24 || !messageText.trim()) return;
+
+    if (!targetNumber.trim()) {
+      setError('Please enter a recipient phone number.');
+      return;
+    }
+    if (!selectedDate) {
+      setError('Please select a target date.');
+      return;
+    }
+    if (!selectedTime24) {
+      setError('Please select a valid target time.');
+      return;
+    }
+    if (!messageText.trim()) {
+      setError('Please enter message text to schedule.');
+      return;
+    }
 
     setSubmitting(true);
     setError('');
@@ -463,154 +479,264 @@ export default function SchedulePage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-[#070607]">
-              <thead className="border-b border-dotted border-[#070607]/20 text-xs font-semibold uppercase text-[#070607]/60">
-                <tr>
-                  <th className="pb-4 pr-6">Recipient</th>
-                  <th className="pb-4 px-6">Scheduled Time</th>
-                  <th className="pb-4 px-6">Type</th>
-                  <th className="pb-4 px-6">Message</th>
-                  <th className="pb-4 px-6">Status</th>
-                  <th className="pb-4 pl-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dotted divide-[#070607]/10">
-                {messages.map((item) => (
-                  <tr key={item.id} className="hover:bg-[#e2e2df]/50 transition">
-                    <td className="py-4 pr-6 font-mono font-bold text-[#070607]">
-                      <div className="flex items-center gap-1.5">
-                        <span>+{item.targetNumber}</span>
-                        {item.deliveryAttempts != null && item.deliveryAttempts > 0 && (
-                          <span className="rounded-full bg-[#e2e2df] px-2 py-0.5 text-[10px] font-bold text-[#070607]/60">
-                            ×{item.deliveryAttempts}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 font-medium text-[#070607]">
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <Calendar className="h-3.5 w-3.5 text-[#fc5000]" />
-                        <span>{new Date(item.scheduledAt).toLocaleString()}</span>
-                      </div>
-                      {item.lastError && (
-                        <div className="mt-1 max-w-[220px] truncate text-[11px] font-semibold text-red-600" title={item.lastError}>
-                          {item.lastError}
+          <>
+            {/* Desktop Table View (md+) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm text-[#070607]">
+                <thead className="border-b border-dotted border-[#070607]/20 text-xs font-semibold uppercase text-[#070607]/60">
+                  <tr>
+                    <th className="pb-4 pr-6">Recipient</th>
+                    <th className="pb-4 px-6">Scheduled Time</th>
+                    <th className="pb-4 px-6">Type</th>
+                    <th className="pb-4 px-6">Message</th>
+                    <th className="pb-4 px-6">Status</th>
+                    <th className="pb-4 pl-6 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dotted divide-[#070607]/10">
+                  {messages.map((item) => (
+                    <tr key={item.id} className="hover:bg-[#e2e2df]/50 transition">
+                      <td className="py-4 pr-6 font-mono font-bold text-[#070607]">
+                        <div className="flex items-center gap-1.5">
+                          <span>+{item.targetNumber}</span>
+                          {item.deliveryAttempts != null && item.deliveryAttempts > 0 && (
+                            <span className="rounded-full bg-[#e2e2df] px-2 py-0.5 text-[10px] font-bold text-[#070607]/60">
+                              ×{item.deliveryAttempts}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          item.type === 'BIRTHDAY'
-                            ? 'bg-[#fc5000] text-[#ffffff]'
-                            : 'bg-[#e2e2df] text-[#070607]'
-                        }`}
-                      >
+                      </td>
+                      <td className="py-4 px-6 font-medium text-[#070607]">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <Calendar className="h-3.5 w-3.5 text-[#fc5000]" />
+                          <span>{new Date(item.scheduledAt).toLocaleString()}</span>
+                        </div>
+                        {item.lastError && (
+                          <div className="mt-1 max-w-[220px] truncate text-[11px] font-semibold text-red-600" title={item.lastError}>
+                            {item.lastError}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            item.type === 'BIRTHDAY'
+                              ? 'bg-[#fc5000] text-[#ffffff]'
+                              : 'bg-[#e2e2df] text-[#070607]'
+                          }`}
+                        >
+                          {item.type}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-[#070607]/80 max-w-xs truncate font-medium">
+                        {item.title ? (
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-[#070607]/50">
+                              {item.title}
+                            </div>
+                            <div className="truncate">{item.message}</div>
+                          </div>
+                        ) : (
+                          item.message
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${STATUS_STYLES[item.status]}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="py-4 pl-6">
+                        <div className="flex items-center justify-end gap-1">
+                          {isEditable(item.status) && (
+                            <button
+                              onClick={() => openEdit(item)}
+                              className="rounded-full p-2 text-[#070607]/60 hover:bg-[#070607] hover:text-[#ffffff] transition"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => runAction(item, '/duplicate', 'Schedule duplicated')}
+                            className="rounded-full p-2 text-[#070607]/60 hover:bg-[#070607] hover:text-[#ffffff] transition"
+                            title="Duplicate"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                          {item.status === 'PENDING' && (
+                            <button
+                              onClick={() => runAction(item, '/pause', 'Schedule paused')}
+                              className="rounded-full p-2 text-[#070607]/60 hover:bg-amber-500 hover:text-[#070607] transition"
+                              title="Pause"
+                            >
+                              <Pause className="h-4 w-4" />
+                            </button>
+                          )}
+                          {item.status === 'FAILED' && (
+                            <button
+                              onClick={() => runAction(item, '/pause', 'Schedule paused')}
+                              className="rounded-full p-2 text-[#070607]/60 hover:bg-amber-500 hover:text-[#070607] transition"
+                              title="Pause"
+                            >
+                              <Pause className="h-4 w-4" />
+                            </button>
+                          )}
+                          {item.status === 'PAUSED' && (
+                            <button
+                              onClick={() => runAction(item, '/resume', 'Schedule resumed')}
+                              className="rounded-full p-2 text-[#070607]/60 hover:bg-green-500 hover:text-[#070607] transition"
+                              title="Resume"
+                            >
+                              <Play className="h-4 w-4" />
+                            </button>
+                          )}
+                          {item.status === 'FAILED' && (
+                            <button
+                              onClick={() => runAction(item, '/retry', 'Schedule retried')}
+                              className="rounded-full p-2 text-[#070607]/60 hover:bg-[#fc5000] hover:text-[#070607] transition"
+                              title="Retry"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                          )}
+                          {['PENDING', 'DRAFT', 'PAUSED', 'FAILED'].includes(item.status) && (
+                            <button
+                              onClick={() => runAction(item, '/cancel', 'Schedule cancelled')}
+                              className="rounded-full p-2 text-[#070607]/60 hover:bg-[#070607] hover:text-[#ffffff] transition"
+                              title="Cancel"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openEvents(item)}
+                            className="rounded-full p-2 text-[#070607]/60 hover:bg-[#fc5000] hover:text-[#070607] transition"
+                            title="Delivery history"
+                          >
+                            <HistoryIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item)}
+                            className="rounded-full p-2 text-[#fc5000] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                            title="Delete Schedule"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (< md) */}
+            <div className="block md:hidden space-y-4">
+              {messages.map((item) => (
+                <div key={item.id} className="rounded-[24px] bg-[#e2e2df] p-4 space-y-3 border border-[#070607]/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-mono font-bold text-sm text-[#070607] truncate">
+                      +{item.targetNumber}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${item.type === 'BIRTHDAY' ? 'bg-[#fc5000] text-[#ffffff]' : 'bg-[#f7f6f2] text-[#070607]'}`}>
                         {item.type}
                       </span>
-                    </td>
-                    <td className="py-4 px-6 text-[#070607]/80 max-w-xs truncate font-medium">
-                      {item.title ? (
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-[#070607]/50">
-                            {item.title}
-                          </div>
-                          <div className="truncate">{item.message}</div>
-                        </div>
-                      ) : (
-                        item.message
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${STATUS_STYLES[item.status]}`}>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLES[item.status]}`}>
                         {item.status}
                       </span>
-                    </td>
-                    <td className="py-4 pl-6">
-                      <div className="flex items-center justify-end gap-1">
-                        {isEditable(item.status) && (
-                          <button
-                            onClick={() => openEdit(item)}
-                            className="rounded-full p-2 text-[#070607]/60 hover:bg-[#070607] hover:text-[#ffffff] transition"
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => runAction(item, '/duplicate', 'Schedule duplicated')}
-                          className="rounded-full p-2 text-[#070607]/60 hover:bg-[#070607] hover:text-[#ffffff] transition"
-                          title="Duplicate"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        {item.status === 'PENDING' && (
-                          <button
-                            onClick={() => runAction(item, '/pause', 'Schedule paused')}
-                            className="rounded-full p-2 text-[#070607]/60 hover:bg-amber-500 hover:text-[#070607] transition"
-                            title="Pause"
-                          >
-                            <Pause className="h-4 w-4" />
-                          </button>
-                        )}
-                        {item.status === 'FAILED' && (
-                          <button
-                            onClick={() => runAction(item, '/pause', 'Schedule paused')}
-                            className="rounded-full p-2 text-[#070607]/60 hover:bg-amber-500 hover:text-[#070607] transition"
-                            title="Pause"
-                          >
-                            <Pause className="h-4 w-4" />
-                          </button>
-                        )}
-                        {item.status === 'PAUSED' && (
-                          <button
-                            onClick={() => runAction(item, '/resume', 'Schedule resumed')}
-                            className="rounded-full p-2 text-[#070607]/60 hover:bg-green-500 hover:text-[#070607] transition"
-                            title="Resume"
-                          >
-                            <Play className="h-4 w-4" />
-                          </button>
-                        )}
-                        {item.status === 'FAILED' && (
-                          <button
-                            onClick={() => runAction(item, '/retry', 'Schedule retried')}
-                            className="rounded-full p-2 text-[#070607]/60 hover:bg-[#fc5000] hover:text-[#070607] transition"
-                            title="Retry"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </button>
-                        )}
-                        {['PENDING', 'DRAFT', 'PAUSED', 'FAILED'].includes(item.status) && (
-                          <button
-                            onClick={() => runAction(item, '/cancel', 'Schedule cancelled')}
-                            className="rounded-full p-2 text-[#070607]/60 hover:bg-[#070607] hover:text-[#ffffff] transition"
-                            title="Cancel"
-                          >
-                            <Ban className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => openEvents(item)}
-                          className="rounded-full p-2 text-[#070607]/60 hover:bg-[#fc5000] hover:text-[#070607] transition"
-                          title="Delivery history"
-                        >
-                          <HistoryIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="rounded-full p-2 text-[#fc5000] hover:bg-[#fc5000] hover:text-[#070607] transition"
-                          title="Delete Schedule"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs font-medium text-[#070607]/80">
+                    {item.title && <div className="font-bold text-[10px] uppercase tracking-wider text-[#070607]/50">{item.title}</div>}
+                    <p className="line-clamp-2">{item.message}</p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#070607]/70 border-t border-dotted border-[#070607]/15 pt-2">
+                    <Calendar className="h-3.5 w-3.5 text-[#fc5000] flex-shrink-0" />
+                    <span>{new Date(item.scheduledAt).toLocaleString()}</span>
+                  </div>
+
+                  {item.lastError && (
+                    <div className="text-[11px] font-semibold text-red-600 truncate" title={item.lastError}>
+                      ⚠️ {item.lastError}
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t border-dotted border-[#070607]/15">
+                    {isEditable(item.status) && (
+                      <button
+                        onClick={() => openEdit(item)}
+                        className="rounded-full bg-[#f7f6f2] p-2 text-[#070607] hover:bg-[#070607] hover:text-[#ffffff] transition"
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => runAction(item, '/duplicate', 'Schedule duplicated')}
+                      className="rounded-full bg-[#f7f6f2] p-2 text-[#070607] hover:bg-[#070607] hover:text-[#ffffff] transition"
+                      title="Duplicate"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    {item.status === 'PENDING' && (
+                      <button
+                        onClick={() => runAction(item, '/pause', 'Schedule paused')}
+                        className="rounded-full bg-[#f7f6f2] p-2 text-amber-600 hover:bg-amber-500 hover:text-[#070607] transition"
+                        title="Pause"
+                      >
+                        <Pause className="h-4 w-4" />
+                      </button>
+                    )}
+                    {item.status === 'PAUSED' && (
+                      <button
+                        onClick={() => runAction(item, '/resume', 'Schedule resumed')}
+                        className="rounded-full bg-[#f7f6f2] p-2 text-green-600 hover:bg-green-500 hover:text-[#070607] transition"
+                        title="Resume"
+                      >
+                        <Play className="h-4 w-4" />
+                      </button>
+                    )}
+                    {item.status === 'FAILED' && (
+                      <button
+                        onClick={() => runAction(item, '/retry', 'Schedule retried')}
+                        className="rounded-full bg-[#f7f6f2] p-2 text-[#fc5000] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                        title="Retry"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    )}
+                    {['PENDING', 'DRAFT', 'PAUSED', 'FAILED'].includes(item.status) && (
+                      <button
+                        onClick={() => runAction(item, '/cancel', 'Schedule cancelled')}
+                        className="rounded-full bg-[#f7f6f2] p-2 text-[#070607] hover:bg-[#070607] hover:text-[#ffffff] transition"
+                        title="Cancel"
+                      >
+                        <Ban className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openEvents(item)}
+                      className="rounded-full bg-[#f7f6f2] p-2 text-[#070607] hover:bg-[#fc5000] hover:text-[#070607] transition"
+                      title="Delivery history"
+                    >
+                      <HistoryIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item)}
+                      className="rounded-full bg-[#f7f6f2] p-2 text-[#fc5000] hover:bg-[#fc5000] hover:text-[#ffffff] transition"
+                      title="Delete Schedule"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
         {messages.length > 0 && (
           <div className="mt-4 text-xs font-semibold text-[#070607]/50">
@@ -636,6 +762,13 @@ export default function SchedulePage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {error && (
+              <div className="mx-6 mt-4 flex items-center gap-2 rounded-[24px] bg-[#fc5000]/15 p-4 text-xs font-bold text-[#fc5000]">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
               <div>
