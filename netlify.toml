@@ -3,9 +3,10 @@
   publish = "apps/web/.next"
 
 [build.environment]
-  NODE_VERSION = "20.18.0"
+  NODE_VERSION = "20.19.2"
   PNPM_VERSION = "10.34.5"
   NETLIFY_USE_PNPM = "true"
+  COREPACK_ENABLE_STRICT = "0"
 
 [[redirects]]
   from = "/api/*"
