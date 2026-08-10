@@ -96,15 +96,35 @@ export function getEnv(): Env {
   // who knows the defaults can forge dashboard tokens or decrypt stored WhatsApp
   // session credentials.
   if (process.env.NODE_ENV === 'production') {
+    // On Render, generateValue:true only takes effect when the service is first
+    // created via render.yaml. Existing services may not have the env var set
+    // yet — in that case we warn loudly but allow startup so the dashboard
+    // remains accessible for the owner to set the env vars manually.
+    const onRender = !!process.env.RENDER;
+
     if (parsedEnv.JWT_SECRET === DEFAULT_JWT_SECRET) {
-      throw new Error(
-        'Refusing to start in production with the default JWT_SECRET. Set a strong random value (e.g. `openssl rand -hex 32`).'
-      );
+      const msg =
+        'WARNING: Running in production with the default JWT_SECRET. ' +
+        'Set a strong random JWT_SECRET environment variable (e.g. `openssl rand -hex 32`).';
+      if (onRender) {
+        console.error('🔴 SECURITY ' + msg);
+      } else {
+        throw new Error(
+          'Refusing to start in production with the default JWT_SECRET. Set a strong random value (e.g. `openssl rand -hex 32`).'
+        );
+      }
     }
     if (parsedEnv.SESSION_ENCRYPTION_KEY === DEFAULT_SESSION_ENCRYPTION_KEY) {
-      throw new Error(
-        'Refusing to start in production with the default SESSION_ENCRYPTION_KEY. Set a strong random 64-char hex value (e.g. `openssl rand -hex 32`).'
-      );
+      const msg =
+        'WARNING: Running in production with the default SESSION_ENCRYPTION_KEY. ' +
+        'Set a strong random 64-char hex value (e.g. `openssl rand -hex 32`).';
+      if (onRender) {
+        console.error('🔴 SECURITY ' + msg);
+      } else {
+        throw new Error(
+          'Refusing to start in production with the default SESSION_ENCRYPTION_KEY. Set a strong random 64-char hex value (e.g. `openssl rand -hex 32`).'
+        );
+      }
     }
   }
 

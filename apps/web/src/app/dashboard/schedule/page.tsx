@@ -124,9 +124,19 @@ export default function SchedulePage() {
         const data = await res.json();
         setMessages(data.messages || []);
         setTotal(data.total ?? (data.messages || []).length);
+        setError('');
+      } else {
+        // Parse error from API response and surface it in the UI
+        try {
+          const data = await res.json();
+          setError(data.error || `Server error (${res.status})`);
+        } catch {
+          setError(`Server error (${res.status})`);
+        }
       }
     } catch (err) {
       console.error(err);
+      setError('Could not reach API server — check your connection.');
     } finally {
       setLoading(false);
     }

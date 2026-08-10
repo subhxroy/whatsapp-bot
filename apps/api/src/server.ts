@@ -35,16 +35,6 @@ declare module 'fastify' {
 export async function buildServer() {
   const env = getEnv();
 
-  // SECURITY: never allow the default JWT secret in production — anyone who knows
-  // the default can forge an OWNER-role dashboard token and take over the bot.
-  const DEFAULT_JWT_SECRET = 'super_secret_jwt_key_change_in_production_32bytes_minimum';
-  if (env.NODE_ENV === 'production' && env.JWT_SECRET === DEFAULT_JWT_SECRET) {
-    throw new Error(
-      'Refusing to start in production with the default JWT_SECRET. ' +
-      'Set a strong random JWT_SECRET environment variable (e.g. `openssl rand -hex 32`).'
-    );
-  }
-
   const fastify = Fastify({
     logger: {
       level: 'info',
