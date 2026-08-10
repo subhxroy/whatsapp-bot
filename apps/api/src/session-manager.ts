@@ -1,4 +1,4 @@
-import { WhatsAppClient } from '@private-md-bot/whatsapp';
+import { WhatsAppClient, hasSavedSession } from '@private-md-bot/whatsapp';
 import type { DeletedMessageEvent, HistoryMessageEvent } from '@private-md-bot/whatsapp';
 import { CommandDispatcher } from '@private-md-bot/commands';
 import { db } from '@private-md-bot/database';
@@ -228,9 +228,15 @@ export class SessionManager {
         const allowed = await canConnectWhatsApp(user);
         if (!allowed) continue;
 
+        const userId = user.username || user.id;
+        // Only auto-connect users on startup who ALREADY have an authenticated WhatsApp session saved in Firestore.
+        // Users without saved credentials will connect on-demand when they open the dashboard or request a QR/pairing code.
+        const hasSession = await hasSavedSession(userId);
+        if (!hasSession) continue;
+
         try {
           // Canonical session id = username (matches payment flow + connect routes).
-          const client = this.getOrCreate(user.username || user.id);
+          const client = this.getOrCreate(userId);
           client.onStatusChange((status) => {
             logger.info({ userId: user.id, status }, 'Session status changed');
           });

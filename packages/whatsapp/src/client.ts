@@ -255,15 +255,29 @@ export class WhatsAppClient {
         }
 
         if (connection === 'close') {
-          const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+          const err = lastDisconnect?.error;
+          const statusCode = (err as Boom)?.output?.statusCode;
+          const errMsg = err?.message || String(err || '');
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+          const isQrTimeout =
+            statusCode === DisconnectReason.timedOut ||
+            statusCode === 408 ||
+            errMsg.includes('QR refs attempts ended');
 
           if (isLoggedOut) {
             logger.warn('WhatsApp session logged out by user — clearing auth store');
             await clearFirebaseAuthState(this.sessionKey);
             this.socket = null;
+            this.reconnectAttempts = 0;
             this.setStatus('DISCONNECTED');
-            setTimeout(() => this.connect(), 500);
+            return;
+          }
+
+          if (isQrTimeout) {
+            logger.warn({ sessionKey: this.sessionKey }, 'WhatsApp QR code pairing timed out without scan — stopping auto-reconnect');
+            this.socket = null;
+            this.reconnectAttempts = 0;
+            this.setStatus('DISCONNECTED');
             return;
           }
 
@@ -276,6 +290,7 @@ export class WhatsAppClient {
             this.reconnectAttempts++;
             setTimeout(() => this.connect(), delay);
           } else {
+            this.socket = null;
             this.reconnectAttempts = 0;
           }
         } else if (connection === 'open') {

@@ -2,6 +2,18 @@ import { AuthenticationCreds, AuthenticationState, SignalDataTypeMap, initAuthCr
 import { db, getDb } from '@private-md-bot/database';
 import { encryptData, decryptData } from '@private-md-bot/security';
 
+export async function hasSavedSession(sessionKey = 'default_session'): Promise<boolean> {
+  try {
+    const record = await db.getSession(`${sessionKey}_creds`);
+    if (!record) return false;
+    const decrypted = decryptData(record.encryptedData);
+    const parsed = JSON.parse(decrypted, BufferJSON.reviver);
+    return !!(parsed && (parsed.me || parsed.myJid));
+  } catch {
+    return false;
+  }
+}
+
 export async function clearFirebaseAuthState(sessionKey = 'default_session'): Promise<void> {
   // SECURITY: delete ONLY the docs owned by this exact session key.
   // An exact `ownerSession == sessionKey` equality query prevents the prefix

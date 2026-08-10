@@ -35,6 +35,7 @@ export default function WhatsAppConnectionPage() {
       if (data.qrCode) {
         setQrCode(data.qrCode);
       }
+      setError((prev) => (prev === 'Failed to reach API server' ? '' : prev));
     } catch {
       setError('Failed to reach API server');
     }
