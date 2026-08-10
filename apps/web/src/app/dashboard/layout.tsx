@@ -42,14 +42,13 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // null = still loading; true/false = resolved
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const cached = typeof window !== 'undefined' ? sessionStorage.getItem('caldera_is_admin') : null;
-    if (cached !== null) {
-      setIsAdmin(cached === 'true');
-    }
-
+    // Always do a fresh check — never read from sessionStorage cache because
+    // a stale "false" entry would incorrectly hide admin nav items even for
+    // OWNER/ADMIN accounts when the role was changed or the API was updated.
     fetch('/api/auth/me', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
@@ -57,10 +56,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (user) {
           const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER' || user.isAdmin === true;
           setIsAdmin(adminCheck);
-          sessionStorage.setItem('caldera_is_admin', String(adminCheck));
         } else {
           setIsAdmin(false);
-          sessionStorage.setItem('caldera_is_admin', 'false');
         }
       })
       .catch(() => setIsAdmin(false));
@@ -73,7 +70,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/login';
   };
 
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin === true);
+  // While loading (null), show all items so admin items aren't missed due to
+  // API latency. Once resolved to false, hide adminOnly items.
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin !== false);
 
   return (
     <div className="min-h-screen bg-[#e2e2df] text-[#070607]">

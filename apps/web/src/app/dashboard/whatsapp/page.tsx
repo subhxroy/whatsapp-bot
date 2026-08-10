@@ -18,6 +18,7 @@ export default function WhatsAppConnectionPage() {
   // Payment states
   const [paymentStatus, setPaymentStatus] = useState<'UNPAID' | 'PENDING' | 'APPROVED' | 'REJECTED'>('APPROVED');
   const [isApproved, setIsApproved] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [utrNumber, setUtrNumber] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [paymentSuccessMsg, setPaymentSuccessMsg] = useState('');
@@ -39,20 +40,49 @@ export default function WhatsAppConnectionPage() {
     }
   };
 
-  const fetchPaymentStatus = async () => {
+  const isAdminRole = (role: string | null) =>
+    role === 'ADMIN' || role === 'OWNER';
+
+  const fetchPaymentStatus = async (role?: string | null) => {
+    // Admin and owner accounts are always approved — skip the payment gate.
+    const effectiveRole = role !== undefined ? role : userRole;
+    if (isAdminRole(effectiveRole)) {
+      setIsApproved(true);
+      setPaymentStatus('APPROVED');
+      return;
+    }
     try {
       const res = await fetch('/api/payment/status', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
+        // If the API now correctly returns APPROVED for admins, honour it;
+        // otherwise fall back to whatever the server says.
         setIsApproved(data.isApproved ?? true);
         setPaymentStatus(data.status || 'APPROVED');
       }
     } catch {}
   };
 
+  const fetchUserRole = async () => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const role = data?.user?.role ?? null;
+        const isAdmin = data?.user?.isAdmin === true;
+        const effectiveRole = isAdmin && role !== 'OWNER' && role !== 'ADMIN' ? 'ADMIN' : role;
+        setUserRole(effectiveRole);
+        return effectiveRole;
+      }
+    } catch {}
+    return null;
+  };
+
   useEffect(() => {
     fetchStatus();
-    fetchPaymentStatus();
+    // Fetch role first, then evaluate payment status so admin accounts
+    // are never shown the activation-fee gate.
+    fetchUserRole().then((role) => fetchPaymentStatus(role));
     const interval = setInterval(fetchStatus, 2000);
     return () => clearInterval(interval);
   }, []);
