@@ -3,16 +3,19 @@ import { db, getDb } from '@private-md-bot/database';
 import { encryptData, decryptData } from '@private-md-bot/security';
 
 export async function clearFirebaseAuthState(sessionKey = 'default_session'): Promise<void> {
-  const docKey = `${sessionKey}_`;
+  // SECURITY: delete ONLY the docs owned by this exact session key.
+  // An exact `ownerSession == sessionKey` equality query prevents the prefix
+  // collision where one session key is a prefix of another (e.g. usernames
+  // `alice_1` and `alice_1_2`, or Google emails that share a prefix). A
+  // `doc.id.startsWith(docKey)` scan would delete ANOTHER user's paired
+  // WhatsApp session in that case.
   try {
-    const snap = await getDb().collection('sessions').get();
-    if (snap.empty) return;
+    const ids = await db.listSessionsForOwner(sessionKey);
+    if (ids.length === 0) return;
     const batch = getDb().batch();
-    snap.docs.forEach((doc: any) => {
-      if (doc.id.startsWith(docKey) || doc.id.includes(sessionKey)) {
-        batch.delete(doc.ref);
-      }
-    });
+    for (const id of ids) {
+      batch.delete(getDb().collection('sessions').doc(id));
+    }
     await batch.commit();
   } catch (err) {
     console.error('Error clearing session auth state:', err);
@@ -39,7 +42,7 @@ export async function useFirebaseAuthState(sessionKey = 'default_session'): Prom
   const writeData = async (key: string, data: any) => {
     const jsonStr = JSON.stringify(data, BufferJSON.replacer);
     const encrypted = encryptData(jsonStr);
-    await db.upsertSession(`${docKey}${key}`, encrypted);
+    await db.upsertSession(`${docKey}${key}`, encrypted, sessionKey);
   };
 
   const removeData = async (key: string) => {

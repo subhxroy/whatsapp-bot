@@ -49,28 +49,34 @@ export const evalCommand: CommandPlugin = {
     }
 
     try {
-      // 🔒 SECURITY: Sandboxed execution via vm.runInNewContext with strict timeout.
-      // The sandbox exposes limited safe globals only — no process, require, fs access.
-      const sandbox: Record<string, any> = {
-        console: { log: (...a: any[]) => a.join(' ') },
-        Math,
-        Date,
-        JSON,
-        parseInt,
-        parseFloat,
-        isNaN,
-        isFinite,
-        String,
-        Number,
-        Boolean,
-        Array,
-        Object,
-        __result: undefined,
-      };
+      // 🔒 SECURITY: sandboxed execution via vm.runInContext against an EMPTY
+      // context global. Passing host builtins (Array/Object/Date/...) into the
+      // sandbox leaks the HOST Function constructor — `Array.constructor('return
+      // process')()` then reaches the real process, i.e. full RCE. With an empty
+      // sandbox the context uses its own realm-bound builtins, which cannot see
+      // host globals; `codeGeneration: { strings: false, wasm: false }` additionally
+      // forbids eval/Function-from-string, and a 3s sync timeout caps CPU use.
+      // NOTE: vm is not a hard security boundary — this command remains OWNER-ONLY.
+      const sandbox: Record<string, any> = {};
       vm.createContext(sandbox);
+      vm.runInContext(
+        `globalThis.console = { log: (...args) => args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ') };`,
+        sandbox,
+        { timeout: 1000, codeGeneration: { strings: false, wasm: false } } as any
+      );
       const wrappedCode = `__result = (async () => { ${code} })()`;
-      vm.runInContext(wrappedCode, sandbox, { timeout: 3000 });
-      const result = await sandbox.__result;
+      // `codeGeneration` is a valid runtime option (blocks Function/eval-from-string)
+      // but is missing from @types/node RunningCodeOptions — cast to any.
+      vm.runInContext(wrappedCode, sandbox, {
+        timeout: 3000,
+        codeGeneration: { strings: false, wasm: false },
+      } as any);
+      // SECURITY: race the awaited result against a host-side timeout so a
+      // never-resolving promise inside the sandbox cannot hang the bot thread.
+      const result = await Promise.race([
+        sandbox.__result,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Eval timed out')), 5000)),
+      ]);
       const output = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? 'undefined');
       await client.sendMessage(activeMsg.chatId, `\u26a1 *Eval Result:*\n\`\`\`${output.slice(0, 2000)}\`\`\``);
     } catch (err: any) {

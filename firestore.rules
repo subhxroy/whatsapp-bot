@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// SECURITY: Default-deny Firestore rules.
+//
+// All application data access goes through the server-side Firebase Admin SDK
+// (packages/database), which BYPASSES security rules. The web client only uses
+// Firebase Auth (apps/web/src/lib/firebase.ts) and never touches Firestore.
+//
+// The legacy standalone admin portal (admin/) was previously written with
+// client-side Firestore reads/writes gated only by a JavaScript allow-list and
+// direct doc updates (approve/reject). That is NOT a security boundary. These
+// rules disable ALL client Firestore access so payments/approvals can only be
+// changed via the authenticated API routes (which re-verify admin role
+// server-side). If any future client does need Firestore, scoped rules with an
+// explicit documented reason must be added — never `if request.auth != null`.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

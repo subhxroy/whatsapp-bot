@@ -10,8 +10,8 @@ export const toAudioCommand: CommandPlugin = {
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
-    const quoted = ctx.message.quoted;
-    if (!quoted) {
+    const hasQuote = !!ctx.message.rawMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (!hasQuote) {
       return await ctx.reply(`ðŸŽµ *Usage:* Reply to a video or voice message with \`${ctx.prefix}toaudio\``);
     }
 

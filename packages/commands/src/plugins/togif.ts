@@ -9,8 +9,8 @@ export const toGifCommand: CommandPlugin = {
   enabled: true,
   cooldown: 5,
   execute: async (ctx) => {
-    const quoted = ctx.message.quoted;
-    if (!quoted) {
+    const hasQuote = !!ctx.message.rawMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    if (!hasQuote) {
       return await ctx.reply(`ðŸŽ¬ *Usage:* Reply to a video or animated sticker with \`${ctx.prefix}togif\``);
     }
 

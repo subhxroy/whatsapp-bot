@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Terminal, Shield, Clock, Search, Settings2, Play, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Terminal, Shield, Clock, Search, Settings2, Play, Sparkles } from 'lucide-react';
 
 interface CommandItem {
   name: string;
@@ -55,9 +55,7 @@ export default function CommandsPage() {
       .then((data) => {
         const user = data?.user;
         if (user) {
-          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-          const userEmail = (user.username || '').toLowerCase();
-          const adminCheck = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER';
           setIsAdmin(adminCheck);
         }
       })
@@ -79,7 +77,7 @@ export default function CommandsPage() {
         credentials: 'include',
         body: JSON.stringify({ enabled: !currentEnabled }),
       });
-    } catch (err) {
+    } catch {
       // Revert state if failed
       setCommands((prev) =>
         prev.map((c) => (c.name === name ? { ...c, enabled: currentEnabled } : c))
@@ -145,8 +143,8 @@ export default function CommandsPage() {
         throw new Error(data.error || 'Execution failed');
       }
       setExecOutput(data.output || 'Execution completed without output.');
-    } catch (err: any) {
-      setExecOutput(`❌ Error: ${err.message || String(err)}`);
+    } catch (err) {
+      setExecOutput(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setExecuting(false);
     }

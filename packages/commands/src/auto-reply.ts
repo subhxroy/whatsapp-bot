@@ -1,6 +1,6 @@
 import { NormalizedMessage, WhatsAppClient } from '@private-md-bot/whatsapp';
 import { db } from '@private-md-bot/database';
-import { RateLimiter } from '@private-md-bot/security';
+import { RateLimiter, isSafeRegex } from '@private-md-bot/security';
 
 const autoReplyRateLimiter = new RateLimiter(5000, 1); // 1 reply per 5 seconds per rule per sender
 
@@ -16,12 +16,20 @@ function extractCleanPhone(input?: string | null): string {
 
 /**
  * Check if a rule's target phone number matches any candidate sender JID or phone string
+ *
+ * SECURITY: two full-length numbers (both >= 11 digits, i.e. with country codes)
+ * must match exactly. Suffix matching is only allowed when at least one side is a
+ * short/partial or local-format number. Without this guard, a rule targeting
+ * `917000000000` would also fire for sender `1917000000000` (a different number
+ * that merely ends with the target's digits).
  */
 function isPhoneMatch(target: string, candidate: string): boolean {
   const t = extractCleanPhone(target);
   const s = extractCleanPhone(candidate);
   if (!t || !s) return false;
-  return t === s || s.endsWith(t) || t.endsWith(s);
+  if (t === s) return true;
+  if (t.length >= 11 && s.length >= 11) return false;
+  return s.endsWith(t) || t.endsWith(s);
 }
 
 export async function processAutoReplies(client: WhatsAppClient, msg: NormalizedMessage): Promise<boolean> {
@@ -62,22 +70,16 @@ export async function processAutoReplies(client: WhatsAppClient, msg: Normalized
           break;
         case 'REGEX':
           try {
-            // 🔒 SECURITY: ReDoS protection — reject obviously dangerous patterns
-            // and limit trigger length to prevent catastrophic backtracking.
-            if (trigger.length > 200) {
-              console.warn(`[AUTOREPLY] Rule ${rule.id} REGEX trigger too long (${trigger.length} chars), skipping`);
-              triggerMatch = false;
-              break;
-            }
-            // Detect and reject common ReDoS patterns: (a+)+, (a*)*,  (a|a)* etc.
-            const redosPatterns = [/\(\.\*\)\+/, /\(\.\+\)\*/, /\([^)]*\+[^)]*\)\+/, /\([^)]*\*[^)]*\)\*/, /\([^)]+\|[^)]+\)\*/];
-            if (redosPatterns.some((p) => p.test(trigger))) {
-              console.warn(`[AUTOREPLY] Rule ${rule.id} REGEX trigger matches known ReDoS pattern, skipping`);
+            // 🔒 SECURITY: ReDoS protection — only patterns that pass the static
+            // safety guard are compiled. Input text is also bounded so a long
+            // message cannot turn a slow pattern into a hang.
+            if (!isSafeRegex(trigger)) {
+              console.warn(`[AUTOREPLY] Rule ${rule.id} REGEX trigger rejected by ReDoS guard, skipping`);
               triggerMatch = false;
               break;
             }
             const rx = new RegExp(trigger, 'i');
-            triggerMatch = rx.test(text);
+            triggerMatch = rx.test(text.slice(0, 1000));
           } catch {
             triggerMatch = false;
           }

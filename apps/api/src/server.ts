@@ -20,6 +20,9 @@ import { registerSettingsRoutes } from './routes/settings';
 import { registerLogRoutes } from './routes/logs';
 import { registerPaymentRoutes } from './routes/payment';
 import { registerScheduledMessageRoutes } from './routes/scheduler';
+import { registerTemplateRoutes } from './routes/templates';
+import { registerDeletedMessageRoutes } from './routes/deleted-messages';
+import { registerMessageHistoryRoutes } from './routes/message-history';
 import { registerWebSocketGateway } from './websocket';
 import { startMessageScheduler } from './scheduler';
 
@@ -69,6 +72,11 @@ export async function buildServer() {
   await fastify.register(fastifyCookie);
   await fastify.register(fastifyJwt, {
     secret: env.JWT_SECRET,
+    // SECURITY: pin the algorithm. @fastify/jwt (fast-jwt) accepts ALL algorithms
+    // by default — an attacker-supplied token could otherwise request a weaker or
+    // asymmetric algorithm (alg-confusion). We only ever sign HS256.
+    sign: { algorithm: 'HS256' },
+    verify: { algorithms: ['HS256'] },
     cookie: {
       cookieName: 'token',
       signed: false,
@@ -101,21 +109,32 @@ export async function buildServer() {
       return;
     }
 
-    // SECURITY: never trust the role claim from the token alone — always reload the
-    // user from the database so role changes/revocations take effect immediately.
-    const claims = request.user || {};
-    const dbUser = await db.findUserById(claims.id || '').catch(() => null);
-    if (dbUser) {
-      request.user = {
-        ...claims,
-        id: dbUser.id,
-        username: dbUser.username,
-        role: dbUser.role,
-        email: dbUser.username,
-      };
-    } else if (!claims.id) {
+    // SECURITY: never trust identity/role claims from the token alone — always
+    // reload the user from the database so role changes/revocations take effect
+    // immediately and deleted users lose access instantly.
+    const claims = (request.user as any) || {};
+    const userId = claims.id || claims.username || '';
+    if (!userId) {
       reply.status(401).send({ error: 'Unauthorized' });
+      return;
     }
+
+    // FAIL CLOSED: if the user is missing from the database (deleted/revoked) or
+    // the lookup fails, the request MUST NOT proceed on token claims alone — a
+    // valid signature on a stale token is not proof of an existing account.
+    const dbUser = await db.findUserById(userId).catch(() => null);
+    if (!dbUser) {
+      reply.status(401).send({ error: 'Unauthorized' });
+      return;
+    }
+
+    // Role is taken from the database, never from the token.
+    request.user = {
+      id: dbUser.id,
+      username: dbUser.username,
+      role: dbUser.role,
+      email: dbUser.username,
+    };
   });
 
   // Global Error Handler (never leak stack traces or internal secrets)
@@ -142,6 +161,9 @@ export async function buildServer() {
   registerLogRoutes(fastify);
   registerPaymentRoutes(fastify, sessionManager);
   registerScheduledMessageRoutes(fastify);
+  registerTemplateRoutes(fastify);
+  registerDeletedMessageRoutes(fastify);
+  registerMessageHistoryRoutes(fastify);
   registerWebSocketGateway(fastify, sessionManager);
 
   return { fastify, sessionManager };

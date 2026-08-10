@@ -8,6 +8,29 @@ import crypto from 'crypto';
 const execFileAsync = promisify(execFile);
 
 export const DEFAULT_MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+export const FFMPEG_TIMEOUT_MS = 60_000; // hard cap on ffmpeg runtime (CPU DoS guard)
+export const MAX_OUTPUT_BYTES = 25 * 1024 * 1024; // cap on converted output size (disk DoS guard)
+
+async function runFfmpeg(args: string[], timeoutMs = FFMPEG_TIMEOUT_MS): Promise<void> {
+  try {
+    await execFileAsync('ffmpeg', args, { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 10 * 1024 * 1024 });
+  } catch (err: any) {
+    if (err && (err.killed === true || err.code === 'ETIMEDOUT' || /timed out/i.test(String(err?.message || '')))) {
+      throw new Error('Media conversion timed out');
+    }
+    throw err;
+  }
+}
+
+async function readOutputSized(filePath: string, maxBytes = MAX_OUTPUT_BYTES): Promise<Buffer> {
+  const buf = await fs.readFile(filePath);
+  if (buf.length > maxBytes) {
+    throw new Error(
+      `Converted media exceeds maximum allowed size (${(maxBytes / (1024 * 1024)).toFixed(1)} MB).`
+    );
+  }
+  return buf;
+}
 
 export function validateMediaBuffer(buffer: Buffer, maxSize = DEFAULT_MAX_SIZE_BYTES): void {
   if (!buffer || buffer.length === 0) {
@@ -45,7 +68,7 @@ export async function imageToSticker(imageBuffer: Buffer, maxSize = DEFAULT_MAX_
 
   try {
     // FFmpeg convert to 512x512 webp sticker
-    await execFileAsync('ffmpeg', [
+    await runFfmpeg([
       '-y',
       '-i',
       inputPath,
@@ -59,7 +82,7 @@ export async function imageToSticker(imageBuffer: Buffer, maxSize = DEFAULT_MAX_
       outputPath,
     ]);
 
-    const resultBuffer = await fs.readFile(outputPath);
+    const resultBuffer = await readOutputSized(outputPath);
     return resultBuffer;
   } finally {
     await safeUnlink(inputPath);
@@ -74,7 +97,7 @@ export async function videoToSticker(videoBuffer: Buffer, maxSize = DEFAULT_MAX_
   const outputPath = path.join(os.tmpdir(), `sticker_${crypto.randomBytes(8).toString('hex')}.webp`);
 
   try {
-    await execFileAsync('ffmpeg', [
+    await runFfmpeg([
       '-y',
       '-i',
       inputPath,
@@ -92,7 +115,7 @@ export async function videoToSticker(videoBuffer: Buffer, maxSize = DEFAULT_MAX_
       outputPath,
     ]);
 
-    const resultBuffer = await fs.readFile(outputPath);
+    const resultBuffer = await readOutputSized(outputPath);
     return resultBuffer;
   } finally {
     await safeUnlink(inputPath);
@@ -107,9 +130,9 @@ export async function stickerToImage(stickerBuffer: Buffer, maxSize = DEFAULT_MA
   const outputPath = path.join(os.tmpdir(), `img_${crypto.randomBytes(8).toString('hex')}.png`);
 
   try {
-    await execFileAsync('ffmpeg', ['-y', '-i', inputPath, outputPath]);
+    await runFfmpeg(['-y', '-i', inputPath, outputPath]);
 
-    const resultBuffer = await fs.readFile(outputPath);
+    const resultBuffer = await readOutputSized(outputPath);
     return resultBuffer;
   } finally {
     await safeUnlink(inputPath);
@@ -129,7 +152,7 @@ export async function extractAudioFromVideo(videoBuffer: Buffer, maxSize = DEFAU
 
   try {
     // Extract audio stream only — no video re-encoding
-    await execFileAsync('ffmpeg', [
+    await runFfmpeg([
       '-y',
       '-i', inputPath,
       '-vn',             // disable video
@@ -139,7 +162,7 @@ export async function extractAudioFromVideo(videoBuffer: Buffer, maxSize = DEFAU
       outputPath,
     ]);
 
-    const resultBuffer = await fs.readFile(outputPath);
+    const resultBuffer = await readOutputSized(outputPath);
     return resultBuffer;
   } finally {
     await safeUnlink(inputPath);

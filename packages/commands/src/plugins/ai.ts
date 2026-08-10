@@ -21,6 +21,9 @@ export const aiCommand: CommandPlugin = {
     if (!prompt) {
       return await ctx.reply(`Usage: \`${ctx.prefix}ai <your question or prompt>\``);
     }
+    if (prompt.length > 2000) {
+      return await ctx.reply('\u274c Prompt too long! Please keep it under 2000 characters.');
+    }
 
     await ctx.reply('ðŸ¤– Thinking...');
 

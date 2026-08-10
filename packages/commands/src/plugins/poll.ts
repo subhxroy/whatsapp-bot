@@ -26,7 +26,18 @@ export const pollCommand: CommandPlugin = {
     }
 
     const question = parts[0];
-    const options = parts.slice(1, 13); // WhatsApp supports up to 12 poll options
+    if (question.length > 100) {
+      return await ctx.reply('\u274c Poll question too long (max 100 characters).');
+    }
+    const options = parts.slice(1, 13).map((opt) => {
+      if (opt.length > 50) {
+        return `\u274c Poll option too long (max 50 characters): ${opt.slice(0, 50)}...`;
+      }
+      return opt;
+    });
+    if (options.some((o) => o.startsWith('\u274c'))) {
+      return await ctx.reply('\u274c Poll options must be 50 characters or fewer.');
+    }
 
     try {
       // Use the actual Baileys sendMessage poll API via socket on client

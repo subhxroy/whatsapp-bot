@@ -48,9 +48,7 @@ export default function SecurityPage() {
       .then((d) => {
         const user = d?.user;
         if (user) {
-          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-          const userEmail = (user.username || '').toLowerCase();
-          const isAdmin = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
           if (!isAdmin) {
             setAccessDenied(true);
             return;

@@ -18,6 +18,9 @@ import {
   Flame,
   Menu,
   X,
+  History,
+  MessageSquareOff,
+  FileText,
 } from 'lucide-react';
 
 const navItems = [
@@ -26,6 +29,9 @@ const navItems = [
   { href: '/dashboard/commands', label: 'Commands', icon: Terminal },
   { href: '/dashboard/auto-reply', label: 'Auto-Reply', icon: MessageSquare },
   { href: '/dashboard/schedule', label: 'Schedule', icon: Clock },
+  { href: '/dashboard/templates', label: 'Templates', icon: FileText },
+  { href: '/dashboard/deleted-messages', label: 'Deleted Messages', icon: MessageSquareOff },
+  { href: '/dashboard/message-history', label: 'Message History', icon: History },
   { href: '/dashboard/ai', label: 'AI Assistant', icon: Bot },
   { href: '/dashboard/media', label: 'Media Settings', icon: FileImage },
   { href: '/dashboard/logs', label: 'Audit Logs', icon: ShieldAlert, adminOnly: true },
@@ -49,9 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then((data) => {
         const user = data?.user;
         if (user) {
-          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-          const userEmail = (user.username || '').toLowerCase();
-          const adminCheck = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER';
           setIsAdmin(adminCheck);
           sessionStorage.setItem('caldera_is_admin', String(adminCheck));
         } else {

@@ -9,11 +9,11 @@ const configMock = vi.hoisted(() => ({
 }));
 
 const dbMock = vi.hoisted(() => ({
-  getSetting: vi.fn(async () => null),
-  getCommandConfig: vi.fn(async () => null),
-  createAuditLog: vi.fn(async () => ({})),
+  getSetting: vi.fn(async (key: string): Promise<any> => null),
+  getCommandConfig: vi.fn(async (name: string): Promise<any> => null),
+  createAuditLog: vi.fn(async (log: any) => ({})),
   createScheduledMessage: vi.fn(async () => ({ id: 'sched-1' })),
-  getEnabledAutoReplies: vi.fn(async () => []),
+  getEnabledAutoReplies: vi.fn(async (userId?: string): Promise<any[]> => []),
   getAutoReplies: vi.fn(async () => []),
 }));
 
@@ -340,7 +340,7 @@ describe('CommandDispatcher — WhatsApp command authorization (E2E)', () => {
     );
     const deniedAudit = dbMock.createAuditLog.mock.calls.find((c: any) => c[0].action === 'COMMAND_DENIED');
     expect(deniedAudit).toBeTruthy();
-    expect(deniedAudit[0].details).toContain('command=ping');
+    expect(deniedAudit![0].details).toContain('command=ping');
 
     vi.clearAllMocks();
     await dispatcher.handleMessage(makeMsg({ body: '.menu' }));

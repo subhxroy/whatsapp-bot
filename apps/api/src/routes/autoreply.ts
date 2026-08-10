@@ -1,30 +1,28 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db, MatchType } from '@private-md-bot/database';
+import { isAdminUser } from '@private-md-bot/security';
 import { logAudit } from '../queue';
 
-const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-
-function checkAdmin(user: any): boolean {
-  if (!user) return false;
-  const identifier = (user.email || user.username || user.id || '').toLowerCase();
-  return EXEMPT_EMAILS.some((e) => e.toLowerCase() === identifier) || user.role === 'ADMIN' || user.role === 'OWNER';
-}
-
 const autoReplySchema = z.object({
-  trigger: z.string().optional().default('*'),
+  trigger: z.string().max(100).optional().default('*'),
   matchType: z.enum(['EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX', 'ANY']),
-  specificNumber: z.string().optional().nullable(),
-  response: z.string().min(1),
+  specificNumber: z
+    .string()
+    .max(15)
+    .refine((v) => !v || /^\d+$/.test(v.replace(/[^0-9]/g, '')), { message: 'specificNumber may only contain digits' })
+    .optional()
+    .nullable(),
+  response: z.string().min(1).max(2000),
   enabled: z.boolean().default(true),
-  priority: z.number().int().default(1),
-  cooldown: z.number().int().default(5),
+  priority: z.number().int().min(0).max(1000).default(1),
+  cooldown: z.number().int().min(0).max(3600).default(5),
 });
 
 export function registerAutoReplyRoutes(fastify: FastifyInstance) {
   fastify.get('/api/auto-replies', { onRequest: [fastify.authenticate] }, async (request) => {
     const user = (request as any).user;
-    const isAdmin = checkAdmin(user);
+    const isAdmin = isAdminUser(user);
     const userId = user?.id || user?.username || '';
 
     const rules = await db.getAutoReplies(userId, isAdmin);
@@ -56,7 +54,7 @@ export function registerAutoReplyRoutes(fastify: FastifyInstance) {
 
   fastify.put('/api/auto-replies/:id', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
-    const isAdmin = checkAdmin(user);
+    const isAdmin = isAdminUser(user);
     const userId = user?.id || user?.username || '';
     const { id } = request.params as { id: string };
     const body = autoReplySchema.partial().parse(request.body);
@@ -88,7 +86,7 @@ export function registerAutoReplyRoutes(fastify: FastifyInstance) {
 
   fastify.delete('/api/auto-replies/:id', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
-    const isAdmin = checkAdmin(user);
+    const isAdmin = isAdminUser(user);
     const userId = user?.id || user?.username || '';
     const { id } = request.params as { id: string };
 

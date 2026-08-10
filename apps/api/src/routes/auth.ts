@@ -5,14 +5,16 @@ import { db, getDb } from '@private-md-bot/database';
 import { hashPassword, verifyPassword } from '@private-md-bot/security';
 import { logAudit } from '../queue';
 
+const USERNAME_RE = /^[A-Za-z0-9._@+-]+$/;
+
 const loginSchema = z.object({
-  username: z.string().min(3),
-  password: z.string().min(6),
+  username: z.string().trim().min(3).max(254).regex(USERNAME_RE, 'Invalid characters in username'),
+  password: z.string().min(6).max(128),
 });
 
 const setupSchema = z.object({
-  username: z.string().min(3),
-  password: z.string().min(6),
+  username: z.string().trim().min(3).max(254).regex(USERNAME_RE, 'Invalid characters in username'),
+  password: z.string().min(6).max(128),
 });
 
 const googleSchema = z.object({
@@ -62,7 +64,10 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
   });
 
   // Login
-  fastify.post('/api/auth/login', async (request, reply) => {
+  fastify.post(
+    '/api/auth/login',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
     const { username, password } = loginSchema.parse(request.body);
 
     const user = await db.findUserByUsername(username);
@@ -95,7 +100,10 @@ export function registerAuthRoutes(fastify: FastifyInstance) {
   });
 
   // Google sign-in (Firebase ID token verified via Admin SDK)
-  fastify.post('/api/auth/google', async (request, reply) => {
+  fastify.post(
+    '/api/auth/google',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
     let idToken: string;
     try {
       ({ idToken } = googleSchema.parse(request.body));

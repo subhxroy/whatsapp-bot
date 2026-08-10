@@ -8,7 +8,24 @@ import makeWASocket, {
 import pino from 'pino';
 import { Boom } from '@hapi/boom';
 import { useFirebaseAuthState, clearFirebaseAuthState } from './auth-store';
-import { ConnectionStatus, MessageHandler, NormalizedMessage, StatusHandler } from './types';
+import {
+  extractFallbackIdentity,
+  extractRecoveredContent,
+  extractContextInfo,
+  getMessageBodyType,
+  messageTimestampMs,
+  unwrapMessageContent,
+} from './deleted-message';
+import {
+  ConnectionStatus,
+  DeletedMessageEvent,
+  DeletedMessageHandler,
+  HistoryMessageEvent,
+  HistoryMessageHandler,
+  MessageHandler,
+  NormalizedMessage,
+  StatusHandler,
+} from './types';
 import { getEnv } from '@private-md-bot/config';
 
 const logger = pino({
@@ -22,6 +39,8 @@ export class WhatsAppClient {
   private qrCode: string | null = null;
   private messageHandlers: Set<MessageHandler> = new Set();
   private statusHandlers: Set<StatusHandler> = new Set();
+  private deletedMessageHandlers: Set<DeletedMessageHandler> = new Set();
+  private historyHandlers: Set<HistoryMessageHandler> = new Set();
   private isExplicitDisconnect = false;
   private reconnectAttempts = 0;
   private recentMessages: Map<string, proto.IWebMessageInfo> = new Map();
@@ -35,6 +54,8 @@ export class WhatsAppClient {
   private senderPnCache = new Map<string, { pn: string; ts: number }>();
 
   private static readonly MAX_CACHED_MESSAGES = 300;
+  private static readonly MAX_CACHED_MESSAGES_PER_CHAT = 100;
+  private static readonly MESSAGE_CACHE_TTL_MS = 30 * 60 * 1000;
   private static readonly SENDER_PN_CACHE_TTL_MS = 120_000;
 
   constructor(sessionKey: string = 'default_session', userId?: string) {
@@ -114,6 +135,18 @@ export class WhatsAppClient {
   public onStatusChange(handler: StatusHandler): () => void {
     this.statusHandlers.add(handler);
     return () => this.statusHandlers.delete(handler);
+  }
+
+  /** Subscribe to "deleted for everyone" (REVOKE) events. */
+  public onDeletedMessage(handler: DeletedMessageHandler): () => void {
+    this.deletedMessageHandlers.add(handler);
+    return () => this.deletedMessageHandlers.delete(handler);
+  }
+
+  /** Subscribe to message-history snapshots (content gated by caller settings). */
+  public onHistoryMessage(handler: HistoryMessageHandler): () => void {
+    this.historyHandlers.add(handler);
+    return () => this.historyHandlers.delete(handler);
   }
 
   private setStatus(newStatus: ConnectionStatus, qr?: string): void {
@@ -299,7 +332,7 @@ export class WhatsAppClient {
           this.cacheMessage(msg.key.id, msg);
 
           const msgKey = msg.key as any;
-          const contextInfo = this.extractContextInfo(msg.message);
+          const contextInfo = extractContextInfo(msg.message);
           logger.info(
             {
               remoteJid: msgKey.remoteJid,
@@ -333,12 +366,63 @@ export class WhatsAppClient {
             logger.info({ id: normalized.id }, 'Processing incoming message (content redacted)');
           }
 
+          // Bounded message-history emission (persistence + content retention decided by caller).
+          if (env.MESSAGE_HISTORY_ENABLED) {
+            const unwrapped = unwrapMessageContent(msg.message) || msg.message;
+            const historyEvent: HistoryMessageEvent = {
+              messageId: normalized.id,
+              chatId: normalized.chatId,
+              senderJid: normalized.senderJid,
+              senderNumber: normalized.senderNumber,
+              fromMe: normalized.fromMe,
+              isGroup: normalized.isGroup,
+              messageType: getMessageBodyType(unwrapped),
+              body: normalized.body || undefined,
+              hasMedia: normalized.hasMedia,
+              mediaType: normalized.mediaType,
+              isViewOnce: normalized.isViewOnce,
+              timestamp: messageTimestampMs(msg),
+            };
+            for (const handler of this.historyHandlers) {
+              try {
+                await handler(historyEvent);
+              } catch (err) {
+                logger.error({ err, id: normalized.id }, 'Error executing message-history handler');
+              }
+            }
+          }
+
           for (const handler of this.messageHandlers) {
             try {
               await handler(normalized);
             } catch (err) {
               logger.error({ err, id: normalized.id }, 'Error executing message handler');
             }
+          }
+        }
+      });
+
+      // Detect "delete for everyone" (REVOKE) events. Baileys surfaces these as a
+      // messages.update whose update.messageStubType === WebMessageInfo.StubType.REVOKE
+      // and whose key.id is the ORIGINAL (deleted) message id. The original content is
+      // NOT included in the event — it is only recoverable from our local bounded cache.
+      this.socket.ev.on('messages.update', async (updates) => {
+        for (const { key, update } of updates) {
+          if (!update || update.messageStubType !== proto.WebMessageInfo.StubType.REVOKE) continue;
+          const deletedId = key?.id;
+          if (!deletedId) continue;
+          try {
+            const event = this.buildDeletedMessageEvent(deletedId, key as any);
+            if (!event) continue;
+            for (const handler of this.deletedMessageHandlers) {
+              try {
+                await handler(event);
+              } catch (err) {
+                logger.error({ err, deletedId }, 'Error executing deleted-message handler');
+              }
+            }
+          } catch (err) {
+            logger.error({ err, deletedId }, 'Error processing REVOKE update');
           }
         }
       });
@@ -432,11 +516,82 @@ export class WhatsAppClient {
   }
 
   public getCachedMessage(id: string): proto.IWebMessageInfo | undefined {
-    return this.recentMessages.get(id);
+    const entry = this.recentMessages.get(id);
+    if (!entry) return undefined;
+    const ts = messageTimestampMs(entry);
+    if (ts > 0 && Date.now() - ts > WhatsAppClient.MESSAGE_CACHE_TTL_MS) {
+      this.recentMessages.delete(id);
+      return undefined;
+    }
+    return entry;
+  }
+
+  /** Bounded snapshot of cached messages, newest first. */
+  public getRecentMessages(limit = 100): proto.IWebMessageInfo[] {
+    return [...this.recentMessages.values()]
+      .sort((a, b) => messageTimestampMs(b) - messageTimestampMs(a))
+      .slice(0, Math.max(1, Math.min(limit, WhatsAppClient.MAX_CACHED_MESSAGES)));
+  }
+
+  /** Bounded snapshot of cached messages for a single chat, newest first. */
+  public getChatMessages(chatId: string, limit = 100): proto.IWebMessageInfo[] {
+    return [...this.recentMessages.values()]
+      .filter((m) => m.key?.remoteJid === chatId)
+      .sort((a, b) => messageTimestampMs(b) - messageTimestampMs(a))
+      .slice(0, Math.max(1, Math.min(limit, WhatsAppClient.MAX_CACHED_MESSAGES_PER_CHAT)));
   }
 
   private cacheMessage(id: string, msg: proto.IWebMessageInfo): void {
+    const now = Date.now();
+    const chatId = msg.key?.remoteJid || '';
+
+    // Age-based eviction when at capacity — keeps the window bounded.
+    if (this.recentMessages.size >= WhatsAppClient.MAX_CACHED_MESSAGES) {
+      for (const [k, v] of this.recentMessages) {
+        const ts = messageTimestampMs(v);
+        if (ts > 0 && now - ts > WhatsAppClient.MESSAGE_CACHE_TTL_MS) {
+          this.recentMessages.delete(k);
+        }
+      }
+    }
+
     this.recentMessages.set(id, msg);
+
+    // Per-chat bound: never hold more than MAX per chat; drop the oldest of that chat.
+    if (chatId) {
+      let chatCount = 0;
+      let oldestChatKey: string | null = null;
+      let oldestChatTs = Infinity;
+      for (const [k, v] of this.recentMessages) {
+        if (v.key?.remoteJid !== chatId) continue;
+        chatCount++;
+        const ts = messageTimestampMs(v);
+        if (ts < oldestChatTs) {
+          oldestChatTs = ts;
+          oldestChatKey = k;
+        }
+      }
+      while (
+        chatCount > WhatsAppClient.MAX_CACHED_MESSAGES_PER_CHAT &&
+        oldestChatKey !== null &&
+        oldestChatKey !== id
+      ) {
+        this.recentMessages.delete(oldestChatKey);
+        chatCount--;
+        oldestChatKey = null;
+        oldestChatTs = Infinity;
+        for (const [k, v] of this.recentMessages) {
+          if (v.key?.remoteJid !== chatId) continue;
+          const ts = messageTimestampMs(v);
+          if (ts < oldestChatTs) {
+            oldestChatTs = ts;
+            oldestChatKey = k;
+          }
+        }
+      }
+    }
+
+    // Hard overall bound.
     if (this.recentMessages.size > WhatsAppClient.MAX_CACHED_MESSAGES) {
       const oldest = this.recentMessages.keys().next().value;
       if (oldest !== undefined) {
@@ -445,62 +600,50 @@ export class WhatsAppClient {
     }
   }
 
-  private unwrapMessageContent(msgContent: proto.IMessage | null | undefined): proto.IMessage | null {
-    if (!msgContent) return null;
-    let current: any = msgContent;
+  /**
+   * Build a DeletedMessageEvent from a REVOKE update.
+   * Content is recovered ONLY from the local bounded cache — never fabricated.
+   */
+  private buildDeletedMessageEvent(
+    deletedId: string,
+    updateKey?: {
+      id?: string | null;
+      remoteJid?: string | null;
+      fromMe?: boolean | null;
+      participant?: string | null;
+    } | null
+  ): DeletedMessageEvent | null {
+    const cached = this.getCachedMessage(deletedId);
+    const chatId = cached?.key?.remoteJid || updateKey?.remoteJid || '';
+    if (!chatId) return null;
+    const deletedAt = Math.floor(Date.now() / 1000);
 
-    while (current) {
-      if (current.ephemeralMessage?.message) {
-        current = current.ephemeralMessage.message;
-      } else if (current.viewOnceMessage?.message) {
-        current = current.viewOnceMessage.message;
-      } else if (current.viewOnceMessageV2?.message) {
-        current = current.viewOnceMessageV2.message;
-      } else if (current.viewOnceMessageV2Extension?.message) {
-        current = current.viewOnceMessageV2Extension.message;
-      } else if (current.documentWithCaptionMessage?.message) {
-        current = current.documentWithCaptionMessage.message;
-      } else if (current.deviceSentMessage?.message) {
-        current = current.deviceSentMessage.message;
-      } else if (current.editedMessage?.message?.protocolMessage?.editedMessage) {
-        current = current.editedMessage.message.protocolMessage.editedMessage;
-      } else {
-        break;
-      }
+    if (cached) {
+      const normalized = this.normalizeMessage(cached);
+      const content = extractRecoveredContent(cached);
+      return {
+        deletedMessageId: deletedId,
+        chatId,
+        senderJid: normalized?.senderJid || cached.key?.remoteJid || chatId,
+        senderNumber: normalized?.senderNumber || chatId.split('@')[0].split(':')[0],
+        senderResolved: normalized?.senderResolved ?? true,
+        fromMe: normalized?.fromMe ?? !!cached.key?.fromMe,
+        ...content,
+        deletedAt,
+      };
     }
-    return current as proto.IMessage;
-  }
 
-  private extractContextInfo(messageContent: proto.IMessage | null | undefined): any {
-    if (!messageContent) return {};
-    const candidates = [
-      'extendedTextMessage',
-      'imageMessage',
-      'videoMessage',
-      'audioMessage',
-      'documentMessage',
-      'stickerMessage',
-      'buttonsResponseMessage',
-      'listResponseMessage',
-    ];
-    for (const key of candidates) {
-      const sub = (messageContent as any)[key];
-      if (sub && sub.contextInfo) return sub.contextInfo;
-    }
-    return {};
-  }
-
-  private getMessageBodyType(content: proto.IMessage): string {
-    if (content.conversation) return 'conversation';
-    if (content.extendedTextMessage) return 'extendedTextMessage';
-    if (content.imageMessage) return 'imageMessage';
-    if (content.videoMessage) return 'videoMessage';
-    if (content.audioMessage) return 'audioMessage';
-    if (content.stickerMessage) return 'stickerMessage';
-    if (content.documentMessage) return 'documentMessage';
-    if (content.buttonsResponseMessage) return 'buttonsResponseMessage';
-    if (content.listResponseMessage) return 'listResponseMessage';
-    return 'unknown';
+    // No cached copy — metadata only. Honest: we do not have the original content.
+    const fallback = extractFallbackIdentity(updateKey, chatId);
+    return {
+      deletedMessageId: deletedId,
+      chatId,
+      ...fallback,
+      messageType: 'unknown',
+      hasMedia: false,
+      deletedAt,
+      contentAvailable: false,
+    };
   }
 
   private normalizeMessage(msg: proto.IWebMessageInfo): NormalizedMessage | null {
@@ -510,7 +653,7 @@ export class WhatsAppClient {
     const messageContent = msg.message;
     if (!messageContent) return null;
 
-    const finalContent = this.unwrapMessageContent(messageContent);
+    const finalContent = unwrapMessageContent(messageContent);
     if (!finalContent) return null;
 
     const isViewOnce =
@@ -628,7 +771,7 @@ export class WhatsAppClient {
         senderJid: phoneJid,
         senderNumber,
         chatId: key.remoteJid,
-        bodyType: this.getMessageBodyType(finalContent),
+        bodyType: getMessageBodyType(finalContent),
       },
       '[CALDERA_DEBUG][NORMALIZED]'
     );

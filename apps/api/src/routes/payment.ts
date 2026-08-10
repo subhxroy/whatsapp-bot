@@ -1,7 +1,19 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { db } from '@private-md-bot/database';
+import { isAdminUser } from '@private-md-bot/security';
 import { sendPaymentNotificationEmail } from '../services/email';
 import { SessionManager } from '../session-manager';
+
+const submitPaymentSchema = z.object({
+  utrNumber: z
+    .string()
+    .trim()
+    .min(4, 'Please provide a valid UTR / Transaction Reference Number')
+    .max(32, 'UTR reference is too long')
+    .regex(/^[A-Za-z0-9\s-]+$/, 'UTR reference may only contain letters, digits, dashes and spaces'),
+  amount: z.number().min(1).max(100000).default(100),
+});
 
 export async function registerPaymentRoutes(fastify: FastifyInstance, sessionManager: SessionManager) {
   // Get payment status for current authenticated user
@@ -18,34 +30,35 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
   });
 
   // Submit UTR Number after paying ₹100
-  fastify.post('/api/payment/submit', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post(
+    '/api/payment/submit',
+    { preHandler: [fastify.authenticate], config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
     const user = request.user as { username?: string; email?: string; id?: string };
     const userIdentifier = user?.email || user?.username || user?.id || '';
 
-    const { utrNumber, amount = 100 } = request.body as { utrNumber?: string; amount?: number };
-
-    if (!utrNumber || utrNumber.trim().length < 4) {
-      return reply.status(400).send({ error: 'Please provide a valid UTR / Transaction Reference Number' });
-    }
+    const { utrNumber, amount } = submitPaymentSchema.parse(request.body);
+    const normalizedUtr = utrNumber.replace(/\s+/g, ' ').trim();
+    const normalizedAmount = Number(amount) || 100;
 
     const requestObj = await db.createPaymentRequest({
       userId: userIdentifier,
       userEmail: userIdentifier,
-      utrNumber: utrNumber.trim(),
-      amount: Number(amount) || 100,
+      utrNumber: normalizedUtr,
+      amount: normalizedAmount,
     });
 
     await sendPaymentNotificationEmail({
       userEmail: userIdentifier,
-      utrNumber: utrNumber.trim(),
-      amount: Number(amount) || 100,
+      utrNumber: normalizedUtr,
+      amount: normalizedAmount,
       paymentId: requestObj.id,
     });
 
     await db.createAuditLog({
       action: 'PAYMENT_SUBMITTED',
       actor: userIdentifier,
-      details: `Submitted UTR ${utrNumber} for ₹${amount}`,
+      details: `Submitted UTR ${normalizedUtr} for ₹${normalizedAmount}`,
       ipAddress: request.ip,
     });
 
@@ -59,12 +72,8 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
   // Admin Only: Get all pending & historical payment requests
   fastify.get('/api/payment/admin/requests', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const user = request.user as { username?: string; email?: string; role?: string };
-    const userIdentifier = user?.email || user?.username || '';
 
-    const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-    const isAdmin = EXEMPT_EMAILS.some((e) => e.toLowerCase() === userIdentifier.toLowerCase()) || user?.role === 'ADMIN' || user?.role === 'OWNER';
-
-    if (!isAdmin) {
+    if (!isAdminUser(user)) {
       return reply.status(403).send({ error: 'Access restricted to administrators' });
     }
 
@@ -75,12 +84,8 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
   // Admin Only: Approve a payment
   fastify.post('/api/payment/admin/approve', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const user = request.user as { username?: string; email?: string; role?: string };
-    const userIdentifier = user?.email || user?.username || '';
 
-    const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-    const isAdmin = EXEMPT_EMAILS.some((e) => e.toLowerCase() === userIdentifier.toLowerCase()) || user?.role === 'ADMIN' || user?.role === 'OWNER';
-
-    if (!isAdmin) {
+    if (!isAdminUser(user)) {
       return reply.status(403).send({ error: 'Access restricted to administrators' });
     }
 
@@ -96,7 +101,7 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
 
     await db.createAuditLog({
       action: 'PAYMENT_APPROVED',
-      actor: userIdentifier,
+      actor: user?.email || user?.username || '',
       details: `Approved payment ${paymentId} for user ${updated.userEmail}`,
       ipAddress: request.ip,
     });
@@ -115,12 +120,8 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
   // Admin Only: Reject or Revoke a payment
   const handleRejectOrRevoke = async (request: any, reply: any) => {
     const user = request.user as { username?: string; email?: string; role?: string };
-    const userIdentifier = user?.email || user?.username || '';
 
-    const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-    const isAdmin = EXEMPT_EMAILS.some((e) => e.toLowerCase() === userIdentifier.toLowerCase()) || user?.role === 'ADMIN' || user?.role === 'OWNER';
-
-    if (!isAdmin) {
+    if (!isAdminUser(user)) {
       return reply.status(403).send({ error: 'Access restricted to administrators' });
     }
 
@@ -144,7 +145,7 @@ export async function registerPaymentRoutes(fastify: FastifyInstance, sessionMan
 
     await db.createAuditLog({
       action: 'PAYMENT_REVOKED',
-      actor: userIdentifier,
+      actor: user?.email || user?.username || '',
       details: `Revoked access / rejected payment ${paymentId} for user ${updated.userEmail}`,
       ipAddress: request.ip,
     });

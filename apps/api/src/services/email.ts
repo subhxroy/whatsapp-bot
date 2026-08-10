@@ -1,6 +1,18 @@
 import nodemailer from 'nodemailer';
 import { getEnv } from '@private-md-bot/config';
 
+// SECURITY: HTML-escape every value interpolated into the email body. Fields like
+// the UTR reference are user-supplied and could otherwise inject markup/phishing
+// content into the admin notification email.
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function sendPaymentNotificationEmail(data: {
   userEmail: string;
   utrNumber: string;
@@ -8,7 +20,12 @@ export async function sendPaymentNotificationEmail(data: {
   paymentId: string;
 }) {
   const env = getEnv();
-  const adminEmails = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com'];
+  // SECURITY: recipients come from the ADMIN_EMAILS env allowlist — never a
+  // hardcoded list baked into source.
+  const adminEmails = (env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 
   console.log(`\n========================================`);
   console.log(` 📩 NEW PAYMENT NOTIFICATION RECEIVED!`);
@@ -44,13 +61,13 @@ export async function sendPaymentNotificationEmail(data: {
               <p>A user has paid <strong>₹${data.amount}</strong> for bot activation and submitted their UTR number for verification.</p>
               
               <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                <tr><td style="padding: 8px 0; color: #71717a;">User Email:</td><td><strong>${data.userEmail}</strong></td></tr>
-                <tr><td style="padding: 8px 0; color: #71717a;">UTR / Transaction Ref:</td><td><strong style="color: #2563eb;">${data.utrNumber}</strong></td></tr>
+                <tr><td style="padding: 8px 0; color: #71717a;">User Email:</td><td><strong>${escapeHtml(data.userEmail)}</strong></td></tr>
+                <tr><td style="padding: 8px 0; color: #71717a;">UTR / Transaction Ref:</td><td><strong style="color: #2563eb;">${escapeHtml(data.utrNumber)}</strong></td></tr>
                 <tr><td style="padding: 8px 0; color: #71717a;">Amount Paid:</td><td><strong>₹${data.amount}</strong></td></tr>
-                <tr><td style="padding: 8px 0; color: #71717a;">Payment ID:</td><td><code>${data.paymentId}</code></td></tr>
+                <tr><td style="padding: 8px 0; color: #71717a;">Payment ID:</td><td><code>${escapeHtml(data.paymentId)}</code></td></tr>
               </table>
 
-              <p style="margin-top: 20px;">Please open your <a href="${env.WEB_URL}/dashboard/security" style="color: #fc5000; font-weight: bold;">Dashboard Admin Panel</a> to verify and approve this account.</p>
+              <p style="margin-top: 20px;">Please open your <a href="${escapeHtml(env.WEB_URL)}/dashboard/security" style="color: #fc5000; font-weight: bold;">Dashboard Admin Panel</a> to verify and approve this account.</p>
             </div>
           </div>
         `,

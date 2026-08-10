@@ -18,9 +18,7 @@ export default function SettingsPage() {
       .then((data) => {
         const user = data?.user;
         if (user) {
-          const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-          const userEmail = (user.username || '').toLowerCase();
-          const adminCheck = EXEMPT_EMAILS.includes(userEmail) || user.role === 'ADMIN' || user.role === 'OWNER';
+          const adminCheck = user.role === 'ADMIN' || user.role === 'OWNER';
           setIsAdmin(adminCheck);
         }
       })
@@ -38,7 +36,7 @@ export default function SettingsPage() {
         if (!data) return;
         const map = data.settingsMap || {};
 
-        setPrefix(map.COMMAND_PREFIX || data.settings?.find((s: any) => s.key === 'prefix')?.value || '.');
+        setPrefix(map.COMMAND_PREFIX || data.settings?.find((s: { key: string }) => s.key === 'prefix')?.value || '.');
         setLogging(map.MESSAGE_LOGGING === 'true' || data.environment?.messageLogging || false);
         setOwnerNumber(map.BOT_OWNER_NUMBER || data.environment?.ownerNumber || '');
       });
@@ -70,8 +68,8 @@ export default function SettingsPage() {
       }
 
       setMsg('General settings saved successfully!');
-    } catch (error: any) {
-      setErr(error.message || 'Failed to save configuration');
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Failed to save configuration');
     } finally {
       setSaving(false);
     }

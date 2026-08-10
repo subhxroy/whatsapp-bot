@@ -73,8 +73,6 @@ export class CommandDispatcher {
 
     const text = msg.body.trim();
 
-    console.log(`[DIAG][DISPATCHER] message received id=${msg.id} senderNumber=${msg.senderNumber} senderResolved=${msg.senderResolved} chatId=${msg.chatId} fromMe=${msg.fromMe} startsWithPrefix=${text.startsWith(prefix)} bodyLen=${text.length}`);
-
     // 1. Command detection
     if (text.startsWith(prefix)) {
       const parts = text.slice(prefix.length).trim().split(/\s+/);

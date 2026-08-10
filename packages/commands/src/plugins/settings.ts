@@ -37,8 +37,33 @@ export const settingsCommand: CommandPlugin = {
       return await ctx.reply(`Usage: \`${ctx.prefix}settings <key> <value>\``);
     }
 
+    // 🔒 SECURITY: only settings keys actually consumed by the bot may be
+    // written from WhatsApp. Arbitrary keys could inject unknown configuration
+    // values that other components trust.
+    if (!ALLOWED_SETTING_KEYS.has(key)) {
+      return await ctx.reply(
+        `❌ Setting \`${key}\` cannot be changed from WhatsApp. ` +
+        `Allowed keys: ${[...ALLOWED_SETTING_KEYS].map((k) => `\`${k}\``).join(', ')}. ` +
+        `Use the web dashboard for other settings.`
+      );
+    }
+
+    if (key === 'BOT_OWNER_NUMBER' && !isValidOwnerNumber(value)) {
+      return await ctx.reply('❌ Invalid BOT_OWNER_NUMBER: must be a 7-15 digit phone number (country code + number).');
+    }
+
     await db.upsertSetting({ key, value, description: 'Updated via .settings command' });
 
-    await ctx.reply(`✅ Updated setting \`${key}\` to \`${value}\`.`);
+    await ctx.reply(`✅ Updated setting \`${key}\`.`);
   },
 };
+
+// SECURITY: allowlist of settings keys that may be modified via the `.settings`
+// WhatsApp command. Kept minimal to the keys the dispatcher and owner config
+// actually consume.
+const ALLOWED_SETTING_KEYS = new Set(['BOT_OWNER_NUMBER', 'prefix']);
+
+function isValidOwnerNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length <= 15;
+}

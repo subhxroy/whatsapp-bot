@@ -11,7 +11,7 @@ export default function AIPage() {
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('https://api.openai.com/v1');
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434');
 
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -28,7 +28,7 @@ export default function AIPage() {
         const map = data.settingsMap || {};
 
         setAiEnabled(map.AI_ENABLED === 'true' || data.environment?.aiEnabled || false);
-        setProvider((map.AI_PROVIDER as any) || 'gemini');
+        setProvider(map.AI_PROVIDER || 'gemini');
         setGeminiKey(map.GEMINI_API_KEY || '');
         setOpenaiKey(map.OPENAI_API_KEY || '');
         setOpenaiBaseUrl(map.OPENAI_BASE_URL || 'https://api.openai.com/v1');
@@ -73,8 +73,8 @@ export default function AIPage() {
       }
 
       setMsg('AI Assistant configuration saved successfully!');
-    } catch (error: any) {
-      setErr(error.message || 'Failed to save configuration');
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Failed to save configuration');
     } finally {
       setSaving(false);
     }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { QrCode, Phone, Power, RefreshCw, CheckCircle, AlertTriangle, CreditCard, Clock, Lock } from 'lucide-react';
+import { QrCode, Phone, Power, RefreshCw, CheckCircle, AlertTriangle, CreditCard, Clock } from 'lucide-react';
 
 const BOT_PRICE = 150;
 const BOT_CURRENCY = '₹';
@@ -77,8 +77,8 @@ export default function WhatsAppConnectionPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to connect');
       setStatus(data.status || 'CONNECTING');
       await fetchStatus();
-    } catch (err: any) {
-      setError(err.message || 'Failed to connect');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect');
     } finally {
       setLoading(false);
     }
@@ -92,8 +92,8 @@ export default function WhatsAppConnectionPage() {
       setPairingCode(null);
       setQrCode(null);
       await fetchStatus();
-    } catch (err: any) {
-      setError(err.message || 'Failed to disconnect');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to disconnect');
     } finally {
       setLoading(false);
     }
@@ -119,8 +119,8 @@ export default function WhatsAppConnectionPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to get pairing code');
       setPairingCode(data.code);
-    } catch (err: any) {
-      setError(err.message || 'Pairing failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Pairing failed');
     } finally {
       setLoading(false);
     }
@@ -145,8 +145,8 @@ export default function WhatsAppConnectionPage() {
       setPaymentSuccessMsg('Payment submitted successfully! Admin has been notified for approval.');
       setPaymentStatus('PENDING');
       await fetchPaymentStatus();
-    } catch (err: any) {
-      setError(err.message || 'Payment submission failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment submission failed');
     } finally {
       setSubmittingPayment(false);
     }

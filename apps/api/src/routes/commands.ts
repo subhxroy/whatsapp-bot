@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { registry } from '@private-md-bot/commands';
 import { db } from '@private-md-bot/database';
+import { isAdminUser } from '@private-md-bot/security';
 import { logAudit } from '../queue';
 
 const updateCommandSchema = z.object({
@@ -12,16 +13,8 @@ const updateCommandSchema = z.object({
 });
 
 const executeCommandSchema = z.object({
-  commandText: z.string().min(1),
+  commandText: z.string().min(1).max(1000),
 });
-
-const EXEMPT_EMAILS = ['contact.subhroy@gmail.com', 'aarxslan@gmail.com', 'admin', 'admin@openify.studio'];
-
-function checkAdmin(user: any): boolean {
-  if (!user) return false;
-  const identifier = (user.email || user.username || user.id || '').toLowerCase();
-  return EXEMPT_EMAILS.some((e) => e.toLowerCase() === identifier) || user.role === 'ADMIN' || user.role === 'OWNER';
-}
 
 export function registerCommandRoutes(fastify: FastifyInstance) {
   fastify.get('/api/commands', { onRequest: [fastify.authenticate] }, async () => {
@@ -55,7 +48,7 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
 
   fastify.put('/api/commands/:name', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const user = (request as any).user;
-    if (!checkAdmin(user)) {
+    if (!isAdminUser(user)) {
       return reply.status(403).send({ error: 'Access restricted to administrators' });
     }
     const { name } = request.params as { name: string };
@@ -84,9 +77,15 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
 
   // Test & Execute command directly from dashboard (ADMIN ONLY — bypasses WhatsApp
   // sender authorization, so it must never be reachable by a regular user)
-  fastify.post('/api/commands/execute', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post(
+    '/api/commands/execute',
+    {
+      onRequest: [fastify.authenticate],
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
     const user = (request as any).user;
-    if (!checkAdmin(user)) {
+    if (!isAdminUser(user)) {
       return reply.status(403).send({ error: 'Access restricted to administrators' });
     }
     const { commandText } = executeCommandSchema.parse(request.body);
@@ -140,7 +139,7 @@ export function registerCommandRoutes(fastify: FastifyInstance) {
         msg: mockMsg,
         args,
         commandName: plugin.name,
-      });
+      } as any);
 
       await logAudit('COMMAND_TEST_EXECUTE', user.username, `Test executed command ${plugin.name}`, request.ip);
 

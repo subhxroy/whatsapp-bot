@@ -159,7 +159,7 @@ export default function AutoReplyPage() {
           <div className="py-12 text-center text-[#070607]/60">
             <MessageSquare className="mx-auto h-12 w-12 text-[#fc5000] mb-3 opacity-80" />
             <p className="font-display text-2xl uppercase text-[#070607]">No Auto-Reply Rules Configured</p>
-            <p className="text-xs font-medium text-[#070607]/60 mt-1">Click "Add New Rule" above to create automated keyword triggers.</p>
+            <p className="text-xs font-medium text-[#070607]/60 mt-1">Click &quot;Add New Rule&quot; above to create automated keyword triggers.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -271,7 +271,7 @@ export default function AutoReplyPage() {
                 <select
                   value={matchType}
                   onChange={(e) => {
-                    const newType = e.target.value as any;
+                    const newType = e.target.value as AutoReplyRule['matchType'];
                     setMatchType(newType);
                     if (newType === 'ANY' && !trigger) {
                       setTrigger('*');

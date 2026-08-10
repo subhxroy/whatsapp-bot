@@ -41,6 +41,18 @@ export const envSchema = z.object({
   MESSAGE_LOGGING: z.string().transform((v) => v === 'true').default('false'),
   AI_ENABLED: z.string().transform((v) => v === 'true').default('false'),
   MEDIA_RETENTION: z.enum(['temporary', 'persistent']).default('temporary'),
+
+  // Message history / deleted-message features (privacy-gated).
+  // MESSAGE_HISTORY_ENABLED: persist bounded message history (metadata + body per
+  //   MESSAGE_CONTENT_RETENTION) for the dashboard. Default FALSE — no message
+  //   content is persisted merely for the dashboard unless explicitly enabled.
+  // MESSAGE_CONTENT_RETENTION: 'metadata' persists only message metadata (never
+  //   bodies); otherwise bodies are retained for the chosen window.
+  // DELETED_MESSAGE_RETENTION: how long "for everyone" deletion events are kept
+  //   in the deleted-message center.
+  MESSAGE_HISTORY_ENABLED: z.string().transform((v) => v === 'true').default('false'),
+  MESSAGE_CONTENT_RETENTION: z.enum(['metadata', '7d', '30d', '90d']).default('metadata'),
+  DELETED_MESSAGE_RETENTION: z.enum(['24h', '7d', '30d', '90d', 'forever']).default('7d'),
   ANALYTICS: z.string().transform((v) => v === 'true').default('false'),
   THIRD_PARTY_TRACKING: z.string().transform((v) => v === 'true').default('false'),
 
@@ -49,6 +61,12 @@ export const envSchema = z.object({
   // this env var is only a bootstrap fallback.
   BOT_OWNER_NUMBER: z.string().default(''),
 
+  // Comma-separated allowlist of admin emails (verified Google sign-in emails).
+  // SECURITY: empty by default — admin access is granted ONLY via the database
+  // role (ADMIN/OWNER) unless this allowlist is explicitly configured. No
+  // hardcoded emails are ever granted admin access.
+  ADMIN_EMAILS: z.string().default(''),
+
   GEMINI_API_KEY: z.string().optional().default(''),
   OPENAI_API_KEY: z.string().optional().default(''),
   OPENAI_BASE_URL: z.string().optional().default('https://api.openai.com/v1'),
@@ -56,6 +74,9 @@ export const envSchema = z.object({
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+const DEFAULT_JWT_SECRET = 'super_secret_jwt_key_change_in_production_32bytes_minimum';
+const DEFAULT_SESSION_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 let parsedEnv: Env;
 
@@ -70,6 +91,23 @@ export function getEnv(): Env {
     }
     parsedEnv = result.success ? result.data : envSchema.parse({});
   }
+
+  // SECURITY: refuse to run in production with well-known default secrets. Anyone
+  // who knows the defaults can forge dashboard tokens or decrypt stored WhatsApp
+  // session credentials.
+  if (process.env.NODE_ENV === 'production') {
+    if (parsedEnv.JWT_SECRET === DEFAULT_JWT_SECRET) {
+      throw new Error(
+        'Refusing to start in production with the default JWT_SECRET. Set a strong random value (e.g. `openssl rand -hex 32`).'
+      );
+    }
+    if (parsedEnv.SESSION_ENCRYPTION_KEY === DEFAULT_SESSION_ENCRYPTION_KEY) {
+      throw new Error(
+        'Refusing to start in production with the default SESSION_ENCRYPTION_KEY. Set a strong random 64-char hex value (e.g. `openssl rand -hex 32`).'
+      );
+    }
+  }
+
   return parsedEnv;
 }
 
