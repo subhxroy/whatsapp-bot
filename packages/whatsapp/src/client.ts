@@ -5,6 +5,7 @@ import makeWASocket, {
   proto,
   downloadMediaMessage,
   downloadContentFromMessage,
+  jidNormalizedUser,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import { Boom } from '@hapi/boom';
@@ -81,7 +82,9 @@ export class WhatsAppClient {
 
   /** The JID of the connected WhatsApp account (e.g. 919864149429:12@s.whatsapp.net or LID). */
   public getConnectedJid(): string | null {
-    return this.socket?.user?.id ?? null;
+    const raw = this.socket?.user?.id;
+    if (!raw) return null;
+    return jidNormalizedUser(raw);
   }
 
   private emitDeletedMessage(event: DeletedMessageEvent): void {

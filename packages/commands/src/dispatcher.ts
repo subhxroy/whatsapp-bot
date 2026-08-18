@@ -105,10 +105,9 @@ export class CommandDispatcher {
       return;
     }
 
-    // Build target destination list:
+    // Build target destination list (ONLY the bot owner's private chat / self-DM):
     // 1. Explicit owner phone number from settings / env (e.g. 919876543210@s.whatsapp.net)
     // 2. Connected account JID (Note to Self / "Message Yourself" chat)
-    // 3. The current chat if 1-on-1 direct message
     const targets = new Set<string>();
 
     const ownerDigits = await resolveOwnerPhone(this.client);
@@ -121,13 +120,8 @@ export class CommandDispatcher {
       targets.add(connectedJid);
     }
 
-    // If 1-on-1 private chat (not a group), also send in the chat itself so it's visible right away
-    if (!msg.isGroup && msg.chatId) {
-      targets.add(msg.chatId);
-    }
-
     if (targets.size === 0) {
-      console.warn('[AUTO-VV] No target chat available to forward view-once media');
+      console.warn('[AUTO-VV] No owner target chat available to forward view-once media');
       return;
     }
 
