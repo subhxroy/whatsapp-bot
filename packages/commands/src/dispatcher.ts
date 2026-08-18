@@ -145,7 +145,13 @@ export class CommandDispatcher {
     // 0. Auto-view-once reveal: silently extract and forward to owner's private chat.
     //    This fires for ANY incoming view-once message (group or private) from any sender.
     //    The bot owner never loses view-once media — it lands in their DM automatically.
-    if (msg.isViewOnce && !msg.fromMe) {
+    let autoVvEnabled = true;
+    try {
+      const autoVvSetting = await db.getSetting('AUTO_VV_ENABLED');
+      if (autoVvSetting) autoVvEnabled = autoVvSetting.value !== 'false';
+    } catch {}
+
+    if (autoVvEnabled && msg.isViewOnce && !msg.fromMe) {
       this.handleAutoVv(msg).catch((err) => {
         console.error('Auto-vv failed:', err);
       });

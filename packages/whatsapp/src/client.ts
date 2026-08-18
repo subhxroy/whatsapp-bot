@@ -436,8 +436,8 @@ export class WhatsAppClient {
             logger.info({ id: normalized.id }, 'Processing incoming message (content redacted)');
           }
 
-          // Bounded message-history emission (persistence + content retention decided by caller).
-          if (env.MESSAGE_HISTORY_ENABLED) {
+          // Bounded message-history emission (persistence + content retention decided dynamically by handler).
+          if (this.historyHandlers.size > 0) {
             const unwrapped = unwrapMessageContent(msg.message) || msg.message;
             const historyEvent: HistoryMessageEvent = {
               messageId: normalized.id,

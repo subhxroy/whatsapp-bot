@@ -172,8 +172,25 @@ export class SessionManager {
 
   private async flushHistory(userId?: string): Promise<void> {
     const env = getEnv();
-    const allowBody = contentBodyAllowed(env.MESSAGE_CONTENT_RETENTION);
+    let isHistoryEnabled = env.MESSAGE_HISTORY_ENABLED;
+    let retentionPolicy = env.MESSAGE_CONTENT_RETENTION;
+
+    try {
+      const historyDbSetting = await db.getSetting('MESSAGE_HISTORY_ENABLED');
+      if (historyDbSetting) isHistoryEnabled = historyDbSetting.value === 'true';
+
+      const retentionDbSetting = await db.getSetting('MESSAGE_CONTENT_RETENTION');
+      if (retentionDbSetting?.value) retentionPolicy = retentionDbSetting.value as any;
+    } catch {}
+
     const targets = userId ? [userId] : [...this.historyBuffer.keys()];
+
+    if (!isHistoryEnabled) {
+      for (const uid of targets) this.historyBuffer.set(uid, []);
+      return;
+    }
+
+    const allowBody = contentBodyAllowed(retentionPolicy);
     for (const uid of targets) {
       const entries = this.historyBuffer.get(uid) || [];
       if (entries.length === 0) continue;
@@ -207,14 +224,20 @@ export class SessionManager {
 
   private async pruneHistory(): Promise<void> {
     const env = getEnv();
-    const retentionMs = contentRetentionMs(env.MESSAGE_CONTENT_RETENTION);
+    let retentionPolicy = env.MESSAGE_CONTENT_RETENTION;
+    try {
+      const retentionDbSetting = await db.getSetting('MESSAGE_CONTENT_RETENTION');
+      if (retentionDbSetting?.value) retentionPolicy = retentionDbSetting.value as any;
+    } catch {}
+
+    const retentionMs = contentRetentionMs(retentionPolicy);
     if (retentionMs === null) return;
     try {
       const olderThan = new Date(Date.now() - retentionMs).toISOString();
       const pruned = await db.pruneMessageHistory(olderThan, HISTORY_DEFAULT_KEEP);
       if (pruned > 0) logger.info({ pruned }, 'Pruned expired message history');
     } catch (err) {
-      logger.error({ err }, 'History prune failed');
+      logger.error({ err }, 'Failed to prune message history');
     }
   }
 

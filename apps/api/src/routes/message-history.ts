@@ -19,10 +19,13 @@ function toLimit(value: string | undefined, fallback: number): number {
 export function registerMessageHistoryRoutes(fastify: FastifyInstance) {
   fastify.get('/api/message-history', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const env = getEnv();
-    if (!env.MESSAGE_HISTORY_ENABLED) {
+    const dbSetting = await db.getSetting('MESSAGE_HISTORY_ENABLED');
+    const isHistoryEnabled = dbSetting ? dbSetting.value === 'true' : env.MESSAGE_HISTORY_ENABLED;
+
+    if (!isHistoryEnabled) {
       return reply
         .status(403)
-        .send({ error: 'Message history is disabled. Enable MESSAGE_HISTORY_ENABLED to use this feature.' });
+        .send({ error: 'Message history is disabled. Enable it in Dashboard > Settings to use this feature.' });
     }
 
     const user = (request as any).user;
