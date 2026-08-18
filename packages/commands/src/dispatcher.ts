@@ -47,8 +47,19 @@ async function resolveOwnerPhone(client?: WhatsAppClient): Promise<string> {
   const envPhone = normalizePhoneNumber(getEnv().BOT_OWNER_NUMBER || '');
   if (envPhone) return envPhone;
 
+  const connectedJid = client?.getConnectedJid();
+  if (connectedJid) {
+    if (connectedJid.includes('@s.whatsapp.net')) {
+      return normalizePhoneNumber(connectedJid.split('@')[0].split(':')[0]);
+    }
+    const mapped = client?.getPnForLid(connectedJid);
+    if (mapped) return normalizePhoneNumber(mapped);
+  }
+
   const connected = client?.getConnectedPhone();
-  if (connected) return normalizePhoneNumber(connected);
+  if (connected && connected.length >= 7 && connected.length <= 15) {
+    return normalizePhoneNumber(connected);
+  }
 
   return '';
 }

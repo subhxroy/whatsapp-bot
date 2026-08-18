@@ -330,12 +330,20 @@ export class WhatsAppClient {
           logger.info('WhatsApp connection successfully established');
           this.reconnectAttempts = 0;
           // Capture the connected WhatsApp phone number for per-user settings.
-          // socket.user?.id is a JID like "919864149429:12@s.whatsapp.net"
+          // socket.user?.id is a JID like "919864149429:12@s.whatsapp.net" or LID
           const rawJid = this.socket?.user?.id ?? '';
-          const phoneDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '');
-          if (phoneDigits) {
-            this.connectedPhone = phoneDigits;
-            logger.info({ phone: phoneDigits }, 'Connected WhatsApp phone captured');
+          if (rawJid.includes('@s.whatsapp.net')) {
+            const phoneDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '');
+            if (phoneDigits) {
+              this.connectedPhone = phoneDigits;
+              logger.info({ phone: phoneDigits }, 'Connected WhatsApp phone captured');
+            }
+          } else if (rawJid.includes('@lid')) {
+            const mapped = this.getPnForLid(rawJid);
+            if (mapped) {
+              this.connectedPhone = mapped;
+              logger.info({ phone: mapped }, 'Connected WhatsApp phone mapped from LID');
+            }
           }
           this.setStatus('CONNECTED');
         }

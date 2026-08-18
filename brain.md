@@ -200,7 +200,7 @@ flowchart TD
 
 #### 12. [landing/index.html](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/landing/index.html)
 - **Purpose**: Editorial landing page for the bot (Caldera branding, Steep-style design).
-- **Content**: Quiet navbar, hero with floating artifact cards, privacy/security section, "rare accent peach" editorial spotlight, features grid (`.vv`, `.birthday`, `.ai`, `.sticker`/`.toimg`), pricing section (**₹150 one-time lifetime license**, UPI), creator profile card (Subhankar Roy — avatar, bio, portfolio/social links), footer.
+- **Content**: Quiet navbar, hero with floating artifact cards, privacy/security section, "rare accent peach" editorial spotlight, features grid (`.vv`, `.birthday`, `.ai`, `.sticker`/`.toimg`), pricing section (**₹1200 one-time lifetime license**, UPI), creator profile card (Subhankar Roy — avatar, bio, portfolio/social links), footer.
 - **SEO**: `canonical` to `caldera-bot.netlify.app`, Open Graph + Twitter card meta, `robots: index,follow`, theme color `#fc5000`, links to `manifest.webmanifest`.
 - **Constants**: `BOT_PRICE = '150'`, `BOT_CURRENCY = '₹'` inlined in a header script.
 
@@ -210,7 +210,7 @@ flowchart TD
 
 #### 14. [admin/index.html](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/admin/index.html)
 - **Purpose**: Standalone **Master Admin Portal** (hosted at `admin-caldera-bot.netlify.app`, `noindex`).
-- **Structure**: Login card (Google sign-in + email/password) → dashboard view with KPI grid (Pending Approvals, Total Revenue ₹150 × approved, Approved Users, Total Submissions) and a payments approval table with filter pills (ALL / PENDING / APPROVED / REJECTED).
+- **Structure**: Login card (Google sign-in + email/password) → dashboard view with KPI grid (Pending Approvals, Total Revenue ₹1200 × approved, Approved Users, Total Submissions) and a payments approval table with filter pills (ALL / PENDING / APPROVED / REJECTED).
 - **Auth note**: Uses Firebase compat SDK (`firebase-app-compat`, `firebase-auth-compat`, `firebase-firestore-compat`). Only allowlisted admin emails (`contact.subhroy@gmail.com`, `aarxslan@gmail.com`) may proceed; others are force signed out.
 
 #### 15. [admin/app.js](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/admin/app.js)
@@ -221,7 +221,7 @@ flowchart TD
   - `subscribeToPayments()` uses a **realtime Firestore `onSnapshot`** listener on the `payments` collection; on failure falls back to `GET https://caldera-bot-api.onrender.com/api/payment/admin/requests`.
   - Approve/reject **write both** the Firestore `payments` doc (merge) **and** the Render API (`POST /api/payment/admin/approve` / `/api/payment/admin/revoke`) — each attempt is try/catch-wrapped independently, so a failure in one still lets the other succeed. Reject/revoke always calls the `/revoke` endpoint, which disconnects the user's WhatsApp session.
   - **Row actions**: `PENDING` → Approve Access / Reject; `APPROVED` → **Revoke Access** (re-calls `rejectPayment`); `REJECTED` → **Re-Approve Access** (re-calls `approvePayment`).
-  - Revenue KPI: `approved * 150`.
+  - Revenue KPI: `approved * 1200`.
 
 #### 16. [admin/style.css](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/admin/style.css)
 - **Purpose**: Admin portal styling (Plus Jakarta Sans + Space Grotesk, dark header, table cards).
@@ -482,11 +482,13 @@ flowchart TD
 #### 51. [packages/commands/src/dispatcher.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/dispatcher.ts)
 - **Purpose**: Master message processing pipeline handler.
 - **Class**: `CommandDispatcher`
+- **Helper functions** (module-level): `extractViewOnceContent(content)` unwraps `viewOnceMessage`/`viewOnceMessageV2`/`viewOnceMessageV2Extension` wrappers; `getViewOnceMediaType(content)` detects `image`/`video`/`audio` from unwrapped content. Used by both `handleAutoVv` and the `.vv` command plugin.
 - **Pipeline Execution Steps**:
+  0. **Auto-view-once reveal** (step 0): When `msg.isViewOnce && !msg.fromMe`, fires `handleAutoVv(msg)` (fire-and-forget) which extracts the view-once content from the raw message, downloads the media from cache, and sends it to the bot owner's private chat (`BOT_OWNER_NUMBER@s.whatsapp.net`) with caption "Auto-revealed view-once".
   1. Fetches dynamic command prefix from database settings or default `.`.
   2. Checks if message starts with prefix; parses command name + args.
   3. Resolves target plugin from `CommandRegistry` (skips unknown/disabled).
-  4. Determines caller role (`OWNER` if `msg.fromMe` or `isOwner(senderJid, BOT_OWNER_NUMBER)` else `PUBLIC`). **New: for group messages it also detects WhatsApp group admins** — fetches `socket.groupMetadata(msg.chatId)` and promotes the sender to `ADMIN` when their clean JID has `admin`/`superadmin`. Rejects non-owners for `ownerOnly` commands.
+  4. Determines caller role (`OWNER` if `msg.fromMe` or `isAuthorizedOwner(senderDigits, ownerDigits)` else `PUBLIC`). **New: for group messages it also detects WhatsApp group admins** — fetches `socket.groupMetadata(msg.chatId)` and promotes the sender to `ADMIN` when their clean JID has `admin`/`superadmin`. Rejects non-owners for `ownerOnly` commands.
   5. Evaluates cooldown via `RateLimiter(5000, 3)` (bypassed for owner self-commands).
   6. Constructs `CommandContext` inline — `reply`/`replyMedia` bound to client sends, plus `replyWithVideo` (raw socket `video` + `gifPlayback`), `replyWithAudio` (raw socket `audio`), `downloadQuotedMedia` (cached original message first, else a synthetic Baileys message built from `contextInfo`), and `getGroupMetadata` (raw socket call) — and executes the plugin via `plugin.execute || plugin.handler` (errors are caught, logged, and surfaced to the chat).
   7. Ignores non-command `fromMe` messages (prevents auto-replying to own chat texts).
@@ -496,7 +498,7 @@ flowchart TD
 - [ping.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/ping.ts): `.ping` — round-trip latency and system uptime.
 - [menu.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/menu.ts): `.menu` / `.m` / `.commands` / `.helpmenu` / `.list` — **dynamic** command menu built from `registry.getAllCommands()` at call time: groups **enabled** commands by `category` (uppercased, per-category icons for ADMIN/GROUP/AI/UTILITY/FUN/MEDIA/GENERAL/DOWNLOADER), prepends a stats banner (prefix, total plugin count, "Connected & Operational"), appends a `.ping`/`.system` tip. Uses `execute: async ({ client, msg, message = msg }: any)`. Advertises "50+ available bot commands".
 - [help.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/help.ts): `.help` — usage, description, aliases, cooldown for a target command.
-- [about.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/about.ts): `.about` — bot architecture, encryption status, privacy parameters.
+- [about.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/about.ts): `.about` — bot architecture, encryption status, privacy parameters (₹1200 activation fee).
 - [owner.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/owner.ts): `.owner` — owner `wa.me` contact link.
 - [settings.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/settings.ts): `.settings` (Owner only) — view/update key-value database settings. **Sensitive keys** (`key`/`secret`/`token`/`password`/`uid`/`credential` substring match) display as `***`.
 - [sticker.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/commands/src/plugins/sticker.ts): `.sticker` — image/video → WhatsApp sticker. Rejects view-once media.
@@ -553,30 +555,33 @@ flowchart TD
 #### 56b. [apps/api/src/session-manager.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/session-manager.ts)
 - **Purpose**: Multi-tenant WhatsApp session lifecycle manager — one `WhatsAppClient` per dashboard user, replacing the old single `waClient` design.
 - **Class**: `SessionManager`
-- **Internals**: `Map<string, WhatsAppClient>` keyed by `userId`; a client is created with session key `user_${userId}` and gets its own `CommandDispatcher` wired via `client.onMessage(...)`.
+- **Internals**: `Map<string, WhatsAppClient>` keyed by `userId`; a client is created with session key `user_${userId}` and gets its own `CommandDispatcher` wired via `client.onMessage(...)`. Also maintains a `historyBuffer` (Map of userId → entries) for bounded message-history buffering, flushed every 10s in batches of 50 to Firestore.
 - **Methods**:
-  - `getOrCreate(userId)`: lazily builds a client + dispatcher pair.
+  - `getOrCreate(userId)`: lazily builds a client + dispatcher pair; also wires `onDeletedMessage` (persists deleted messages), `onHistoryMessage` (buffers history), and `onStatusChange` (persists `connectedPhone` to Firestore on CONNECTED status).
   - `get(userId)` / `remove(userId)`: map lookups.
   - `connect(userId)` / `disconnect(userId)`: connect / disconnect-and-remove a session (`disconnect` deletes it from the map).
-  - `getStatus(userId)`: `{ status, qrCode }` (returns `DISCONNECTED`/`null` for unknown users).
+  - `getStatus(userId)`: `{ status, qrCode, connectedPhone }` (returns `DISCONNECTED`/`null` for unknown users).
   - `isConnected(userId)` / `getConnectedCount()`: connected-state checks.
   - `getClientForMessage(senderJid)`: resolves the sender's phone from the JID, then **digits-normalized exact session-key match only** (loop comparing `userId.replace(/\D/g,'') === senderPhone` over `CONNECTED` clients). The old substring/`includes` routing (email/username containment) was **removed** — it could route a message to the wrong session when one phone number contains another (e.g. `917000000000` inside `1917000000000`). **Returns `undefined` instead of an arbitrary connected client** when nothing matches (fail-closed, prevents wrong-user sends).
-  - `connectAllApproved()`: iterates `db.getAllUsers()`; a user connects only when `user.role` is `OWNER`/`ADMIN` **or** `getUserPaymentStatus()` returns `isApproved: true`. **No exempt-email list** (the old `EXEMPT_EMAILS` bypass was removed). Called from `index.ts` on startup.
+  - `connectAllApproved()`: iterates `db.getAllUsers()`; a user connects only when they have a saved WhatsApp session (`hasSavedSession(sessionKey)` check) AND `user.role` is `OWNER`/`ADMIN` **or** `getUserPaymentStatus()` returns `isApproved: true`. **No exempt-email list** (the old `EXEMPT_EMAILS` bypass was removed). Called from `index.ts` on startup.
 
 #### 57. [apps/api/src/websocket.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/websocket.ts)
 - **Purpose**: Real-time authenticated WebSocket gateway.
 - **Function**: `registerWebSocketGateway(fastify, sessionManager)` handles `/ws` connections. Authenticates JWT from the `token` query param or `token` cookie, groups sockets per `userId`, and broadcasts the **per-user** session's `STATUS_UPDATE` events (`client.onStatusChange`) with status + QR. Sends the current status immediately on connect, closes with code 4001 when unauthenticated.
 
 #### 58. [apps/api/src/queue.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/queue.ts)
-- **Purpose**: Audit log helper — **no Redis/BullMQ anymore**.
+- **Purpose**: Audit log helper — **no Redis/BullMQ anymore**. `bullmq` and `ioredis` remain in `apps/api/package.json` but are **unused by runtime code**.
 - **Function**: Exports `logAudit(action, actor, details?, ipAddress?)`, which writes the audit entry directly to Firestore via `db.createAuditLog(...)` with a try/catch fallback (errors are logged, never thrown). `bullmq` / `ioredis` remain in `apps/api/package.json` but are **unused by runtime code**.
 
 #### 59. [apps/api/src/scheduler.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/scheduler.ts)
 - **Purpose**: Background message & birthday delivery engine.
 - **Function**: `startMessageScheduler(sessionManager)` polls every **5 seconds**:
-  - Fetches `PENDING` `scheduledMessages` from Firestore; for each record whose `scheduledAt <= now`, resolves the sender's session (`sessionManager.get(senderEmail)` falling back to `getClientForMessage`), skips when no connected session.
-  - Sends `message` to `targetJid` via `client.sendMessage`, marks the record `SENT`.
+  - Fetches `PENDING` `scheduledMessages` from Firestore; for each record whose `scheduledAt <= now`, attempts an **atomic claim** (`claimScheduledMessage(id)` — `PENDING→PROCESSING` transition prevents double-sends across multiple instances).
+  - Resolves the sender's session (`sessionManager.get(senderEmail)` falling back to `getClientForMessage`), skips when no connected session.
+  - Sends `message` to `targetJid` via `client.sendMessage`, transitions to `SENT`.
   - Sends a delivery receipt to `item.senderJid` in the sender's self-chat **only when `senderJid` includes `@s.whatsapp.net`** ("Delivered Birthday Wish!" / "Delivered Scheduled Message!" with recipient + message).
+  - Writes 12 event types to `scheduleEvents` collection (CREATED/SENT/FAILED/RETRIED/etc.).
+  - Runs `requeueStaleProcessing()` on stale PROCESSING records (prevents stuck records) and `deleteExpiredDeletedMessages()` for cleanup.
 
 #### 60. [apps/api/src/services/email.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/services/email.ts)
 - **Purpose**: Payment submission email notification.
@@ -587,15 +592,15 @@ flowchart TD
 
 #### 61. API Route Handlers (`apps/api/src/routes/`)
 - [health.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/health.ts): `/health` and `/api/health` (status + uptime), `/api/ready` — pings Firestore (`db.ping()`), returns `{ ready, services: { database, activeSessions } }` where `activeSessions` comes from `sessionManager.getConnectedCount()`; returns 503 when the DB is down.
-- [auth.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/auth.ts): `/api/auth/status`, `/api/auth/setup` (initial admin, role OWNER), `/api/auth/login` (scrypt + HTTP-only cookie), `/api/auth/google` (calls `getDb()` first to guarantee the Firebase Admin SDK app is initialized, then `getAuth().verifyIdToken`; links by email; first user auto-created as OWNER, new Google users auto-created as USER (self-registration via Google sign-in; bot access gated by payment status)), `/api/auth/logout`, `/api/auth/me`. All sessions issue a JWT with `expiresIn: '7d'` and set a `token` cookie with `maxAge: COOKIE_MAX_AGE` (7 days, `httpOnly`, `secure` in production, `sameSite: 'lax'`) — **shortened from 30d to 7d for security**.
-- [whatsapp.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/whatsapp.ts): `/api/whatsapp/status` (status + QR), `/api/whatsapp/connect`, `/api/whatsapp/disconnect`, `/api/whatsapp/pair-code`. All delegate to the per-user session: `sessionManager.getStatus/connect/disconnect(userId)` and `sessionManager.getOrCreate(userId).requestPairingCode(...)`. All audit-logged.
+- [auth.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/auth.ts): `/api/auth/status`, `/api/auth/setup` (initial admin, role OWNER), `/api/auth/login` (scrypt + HTTP-only cookie), `/api/auth/google` (calls `getDb()` first to guarantee the Firebase Admin SDK app is initialized, then `getAuth().verifyIdToken`; links by email; first user auto-created as OWNER, new Google users auto-created as USER (self-registration via Google sign-in; bot access gated by payment status)), `/api/auth/logout`, `/api/auth/me` (includes `connectedPhone` from the user's active session). All sessions issue a JWT with `expiresIn: '7d'` and set a `token` cookie with `maxAge: COOKIE_MAX_AGE` (7 days, `httpOnly`, `secure` in production, `sameSite: 'lax'`) — **shortened from 30d to 7d for security**.
+- [whatsapp.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/whatsapp.ts): `/api/whatsapp/status` (status + QR + `connectedPhone`), `/api/whatsapp/connect`, `/api/whatsapp/disconnect`, `/api/whatsapp/pair-code`. All delegate to the per-user session: `sessionManager.getStatus/connect/disconnect(userId)` and `sessionManager.getOrCreate(userId).requestPairingCode(...)`. All audit-logged.
 - [commands.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/commands.ts): `/api/commands` (GET merges registry defaults with `commandConfigs` overrides for aliases/ownerOnly/enabled/cooldown; PUT `/api/commands/:name` updates config + `COMMAND_CONFIG_UPDATE` audit, admin-only). **`POST /api/commands/execute`** — "Test & Execute" from the dashboard: parses `.cmd args`, resolves the plugin via `registry.getCommand(...)` (the broken `getCommandByAlias` fallback was removed), runs it against a **mock client** (captures `sendMessage` text into an `output` string) with `senderJid` derived from the auth user, returns the captured output, writes a `COMMAND_TEST_EXECUTE` audit log.
 - [logs.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/logs.ts): `/api/logs` paginated audit history. **Admin gate is `isAdminUser(user)` (DB role/`ADMIN_EMAILS` only)** — the old `EXEMPT_EMAILS` const was removed; non-admins get a hard 403.
 - [autoreply.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/autoreply.ts): `/api/auto-replies` CRUD — **per-user scoped** (rules tagged with the caller's `userId`; non-admins only see/edit/delete their own, admins manage all). **zod input bounds**: `trigger` ≤ 100 chars, `specificNumber` ≤ 15 chars and digits-only (after stripping non-digits), `response` 1–2000 chars, `priority` int 0–1000 (default 1), `cooldown` int 0–3600s (default 5).
-- [settings.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/settings.ts): `/api/settings` (GET privacy flags & settings; **API keys and `BOT_OWNER_NUMBER` are masked (`***`) for non-admin users**; PUT update, admin-only). **PUT is restricted to an `ALLOWED_SETTING_KEYS` allowlist** (10 keys: `BOT_OWNER_NUMBER`, `prefix`, `COMMAND_PREFIX`, `MESSAGE_LOGGING`, `AI_ENABLED`, `AI_PROVIDER`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OLLAMA_BASE_URL`) — arbitrary keys that other components trust are rejected 400. Key ≤ 64 chars, value ≤ 2000 chars, `BOT_OWNER_NUMBER` must contain 7–15 digits; both batch (`settings` object) and single-key paths enforce this.
+- [settings.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/settings.ts): `/api/settings` (GET privacy flags & settings; **API keys and `BOT_OWNER_NUMBER` are masked (`***`) for non-admin users**; PUT update, admin-only). **PUT is restricted to an `ALLOWED_SETTING_KEYS` allowlist** (14 keys: `BOT_OWNER_NUMBER`, `prefix`, `COMMAND_PREFIX`, `MESSAGE_LOGGING`, `AI_ENABLED`, `AI_PROVIDER`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OLLAMA_BASE_URL`, `MESSAGE_CONTENT_RETENTION`, `DELETED_MESSAGE_RETENTION`, `MESSAGE_HISTORY_ENABLED`, `AUTO_VV_ENABLED`) — arbitrary keys that other components trust are rejected 400. Key ≤ 64 chars, value ≤ 2000 chars, `BOT_OWNER_NUMBER` must contain 7–15 digits; both batch (`settings` object) and single-key paths enforce this. `MESSAGE_CONTENT_RETENTION` validated against allowed enum values (`metadata`/`7d`/`30d`/`90d`).
 - [payment.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/payment.ts): Monetization endpoints:
-  - `GET /api/payment/status` (auth): returns `getUserPaymentStatus(userIdentifier)` — `{ isApproved, status, request? }`.
-  - `POST /api/payment/submit` (auth): validates body via `submitPaymentSchema` zod (non-object bodies rejected; `utrNumber` trimmed, 4–32 chars, regex `^[A-Za-z0-9\s-]+$`; `amount` number 1–100000, default `100` — the dashboard submits ₹150), creates `payments` record, sends the admin notification email, writes a `PAYMENT_SUBMITTED` audit log.
+  - `GET /api/payment/status` (auth): returns `getUserPaymentStatus(userIdentifier)` — `{ isApproved, status, request? }`. **Admin/OWNER users auto-approve** via `isAdminUser()` check — bypasses payment gate entirely.
+  - `POST /api/payment/submit` (auth): validates body via `submitPaymentSchema` zod (non-object bodies rejected; `utrNumber` trimmed, 4–32 chars, regex `^[A-Za-z0-9\s-]+$`; `amount` number 1–100000, default `1200`), creates `payments` record, sends the admin notification email, writes a `PAYMENT_SUBMITTED` audit log.
   - `GET /api/payment/admin/requests` (admin): all payment requests; admin check is `isAdminUser(user)` (DB role or `ADMIN_EMAILS` — no hard-coded allowlist).
   - `POST /api/payment/admin/approve` (admin): updates status, writes `PAYMENT_APPROVED` audit log. **Approval also auto-connects the approved user's WhatsApp session** via `sessionManager.connect(approvedUserId)`.
   - `POST /api/payment/admin/reject` **and** `POST /api/payment/admin/revoke` (admin): shared handler — updates status to `REJECTED`, writes a `PAYMENT_REVOKED` audit log, and **disconnects the user's active WhatsApp session** (`sessionManager.disconnect(revokedUserId)`) so revoked users lose bot access immediately.
@@ -603,6 +608,10 @@ flowchart TD
   - `GET /api/scheduled-messages` (auth): lists the caller's scheduled messages (admins see all; newest `scheduledAt` first).
   - `POST /api/scheduled-messages` (auth, zod: `targetNumber`, `message`, `scheduledAt`, optional `type` `SCHEDULED|BIRTHDAY`): normalizes the phone to digits, builds `targetJid` as `${digits}@s.whatsapp.net` and `senderJid` from the auth user, stores the caller's `userId` on the record, creates a `scheduledMessages` record, writes a `SCHEDULED_MESSAGE_CREATE` audit log.
   - `DELETE /api/scheduled-messages/:id` (auth): deletes/cancels a record owned by the caller (admins can delete any) + `SCHEDULED_MESSAGE_DELETE` audit log.
+- [deleted-messages.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/deleted-messages.ts): Deleted message viewer API:
+  - `GET /api/deleted-messages` (auth): paginated list with search, chatId, fromMe filters. Non-admins only see their own records; admins see all.
+  - `DELETE /api/deleted-messages/:id` (auth): purge a record (ownership-checked for non-admins).
+- [message-history.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/src/routes/message-history.ts): Message history feed API (enabled via `MESSAGE_HISTORY_ENABLED`).
 
 #### 62. [apps/api/scripts/firebase-bootstrap.js](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/api/scripts/firebase-bootstrap.js)
 - **Purpose**: Firestore bootstrap + connectivity verification (run via `pnpm --filter @private-md-bot/api firebase:setup`).
@@ -635,22 +644,26 @@ flowchart TD
 - [sitemap.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/sitemap.ts): Sitemap with `/login` (base URL from `NEXT_PUBLIC_APP_URL` or `dashboard-caldera-bot.netlify.app`).
 - [login/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/login/page.tsx): Auth page supporting initial admin account creation (`/api/auth/setup`), password login (`/api/auth/login`), and Google sign-in (`signInWithPopup` → ID token → `POST /api/auth/google`). Decides setup-vs-login via `/api/auth/status`; on mount it also calls `/api/auth/me` and **auto-redirects already-authenticated users to `/dashboard`**.
 - [lib/firebase.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/lib/firebase.ts): Client-side Firebase lazy init from `NEXT_PUBLIC_FIREBASE_*` env vars (no top-level `initializeApp`, so SSR/prerender is safe). Calls `setPersistence(auth, browserLocalPersistence)` so Google sessions survive page reloads. Exports `signInWithGoogle()` and `googleErrorToMessage()`. `firebase` web SDK is a dependency of `apps/web` only.
-- [dashboard/layout.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/layout.tsx): Responsive dashboard shell — desktop sticky sidebar plus a **mobile hamburger drawer** header (md:hidden) with sign-out. Nav: Overview, WhatsApp, Commands, Auto-Reply, **Schedule**, AI Assistant, Media Settings, Audit Logs, Security, Settings. **Audit Logs and Security are `adminOnly`** — they are hidden unless `GET /api/auth/me` reports `role === 'ADMIN' || role === 'OWNER'` (the old `EXEMPT_EMAILS` client-side check was removed; cached in `sessionStorage` as `caldera_is_admin`). (No Admin link — the Admin Portal lives at the `dashboard/admin/page.tsx` tab and the standalone `admin/` site.)
-- [dashboard/schedule/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/schedule/page.tsx): Scheduled Messages page — lists records (3s auto-refresh) with delete, plus a "Schedule New Message" modal with a **custom 12-hour AM/PM digital time picker** (hour steppers 1-12, minute steppers with full 00-59 precision, quick ±1m buttons, AM/PM pills), quick presets (+15m/+1h/+3h/Tomorrow 9AM/6PM), a human-readable delivery preview card, and `SCHEDULED`/`BIRTHDAY` type selector. Submits ISO-8601 timestamps to `POST /api/scheduled-messages`.
+- [dashboard/layout.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/layout.tsx): Responsive dashboard shell — desktop sticky sidebar plus a **mobile hamburger drawer** header (md:hidden) with sign-out. Nav: Overview, WhatsApp, Commands, Auto-Reply, **Schedule**, AI Assistant, Media Settings, **Deleted Messages**, **Message History**, Audit Logs, Security, Settings. **Audit Logs and Security are `adminOnly`** — they are hidden unless `GET /api/auth/me` reports `role === 'ADMIN' || role === 'OWNER'` (the old `EXEMPT_EMAILS` client-side check was removed; fresh admin check via API on every layout mount, never stale sessionStorage). (No Admin link — the Admin Portal lives at the `dashboard/admin/page.tsx` tab and the standalone `admin/` site.)
+- [dashboard/schedule/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/schedule/page.tsx): Scheduled Messages page — lists records (3s auto-refresh) with delete, plus a "Schedule New Message" modal with a **custom 12-hour AM/PM digital time picker** (hour steppers 1-12, minute steppers with full 00-59 precision, quick ±1m buttons, AM/PM pills), quick presets (+15m/+1h/+3h/Tomorrow 9AM/6PM), a human-readable delivery preview card, and `SCHEDULED`/`BIRTHDAY` type selector. Submits ISO-8601 timestamps to `POST /api/scheduled-messages`. **Event history** shows 12 event types per schedule (CREATED/UPDATED/DELETED/CANCELLED/PAUSED/RESUMED/DUPLICATED/RETRIED/DELIVERY_ATTEMPT/SENT/FAILED). **Mobile card view** + modal save auto-dismiss.
 - [dashboard/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/page.tsx): Overview page — connection status, command/auto-reply counts, architecture cards.
 - [dashboard/whatsapp/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/whatsapp/page.tsx): WhatsApp connection page with **activation paywall**:
-  - Non-approved users see a ₹150 UPI payment card (`upi://pay?pa=contact.subhroy@okaxis...`) with a scannable QR and a UTR submission form → `POST /api/payment/submit`.
+  - Non-approved users see a ₹1200 UPI payment card (`upi://pay?pa=contact.subhroy@okaxis...`) with a scannable QR and a UTR submission form → `POST /api/payment/submit`.
   - Pending approvals show a "Payment Under Review" banner.
   - Connect button and pairing form are disabled until `isApproved` (from `GET /api/payment/status`).
   - Approved users get the live QR (QRCodeSVG), 8-digit pairing code form, and connect/disconnect controls. Status polls every 2s.
+  - **Admin/OWNER auto-bypass**: `isAdminUser()` check skips the payment gate entirely — admins see the connect controls immediately.
+  - **Connected phone display**: shows the currently connected WhatsApp account's phone number (from `GET /api/whatsapp/status` → `connectedPhone`).
 - [dashboard/commands/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/commands/page.tsx): Command registry management table with status toggles — **toggles are gated on `isAdmin`** (resolved from `GET /api/auth/me` as `role === 'ADMIN' || role === 'OWNER'`; the old exempt-email check was removed; non-admins see the table read-only).
 - [dashboard/auto-reply/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/auto-reply/page.tsx): Auto-reply rule table and creation modal — supports trigger/match-type, **specific phone-number targeting** (rule fires only for that contact), priority, cooldown, and enable toggle.
 - [dashboard/ai/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/ai/page.tsx): AI engine provider status and model selection.
-- [dashboard/media/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/media/page.tsx): FFmpeg conversion specs and view-once handling policy (`.vv`/`.avv` reveal, `.sticker`/`.toimg` reject).
+- [dashboard/media/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/media/page.tsx): FFmpeg conversion specs and view-once handling policy (`.vv`/`.avv` reveal, `.sticker`/`.toimg` reject, **auto-view-once reveal** now enabled by default — forwards to owner's DM).
+- [dashboard/deleted-messages/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/deleted-messages/page.tsx): Deleted messages viewer — shows messages revoked by senders with sender info, content (body text if `MESSAGE_CONTENT_RETENTION` allows), media type indicators, deletion time, retention expiry. **5s auto-refresh** polling. Search by sender number/chat/content, filter by chat JID or direction (from me/from them). Purge button for individual records. Content is recovered from the local bounded cache at revoke time — never fabricated.
+- [dashboard/message-history/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/message-history/page.tsx): Message history feed — shows incoming/outgoing messages with sender info, content, media type, view-once indicators, and timestamps. Enabled via `MESSAGE_HISTORY_ENABLED` setting. Bounded to configurable retention (`MESSAGE_CONTENT_RETENTION`).
 - [dashboard/logs/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/logs/page.tsx): Administrative audit logs table (no message content).
-- [dashboard/security/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/security/page.tsx): Encryption status, RBAC overview, **embedded payment approvals table** (approve/reject via `/api/payment/admin/*`; **`APPROVED` rows show a "Revoke Access" button and `REJECTED` rows show "Re-Approve"**), and a link out to the standalone Master Admin Portal. Admin-gated by `role === 'ADMIN' || role === 'OWNER'` (exempt-email check removed).
-- [dashboard/settings/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/settings/page.tsx): Command prefix updater and privacy flag monitor. **Non-admin users see a read-only "System parameters are managed by Administrators" banner instead of the Save button** (admin check resolved from `GET /api/auth/me` as `role === 'ADMIN' || role === 'OWNER'`; exempt-email check removed).
-- [dashboard/admin/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/admin/page.tsx): **Admin Portal** tab (not linked from the sidebar) — KPI cards (Pending Approvals, Total Revenue, Total Users Paid, WhatsApp Engine status), master-admin email banner, and a filterable payment approval table with 5s auto-refresh. **`APPROVED` rows get a "Revoke Access" button and `REJECTED` rows get "Re-Approve Access"** (both call `handleReject`/`handleApprove`). Revenue card multiplies `approvedCount * 200` (see Known Issues — inconsistent with the ₹150 price).
+- [dashboard/security/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/security/page.tsx): Encryption status, RBAC overview, auto-view-once status, atomic scheduler claims status, **embedded payment approvals table** (approve/reject via `/api/payment/admin/*`; **`APPROVED` rows show a "Revoke Access" button and `REJECTED` rows show "Re-Approve"**), and a link out to the standalone Master Admin Portal. Admin-gated by `role === 'ADMIN' || role === 'OWNER'` (exempt-email check removed).
+- [dashboard/settings/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/settings/page.tsx): **Complete rewrite** — 5-section settings page: (1) General (command prefix), (2) Privacy (`MESSAGE_LOGGING`, `MESSAGE_CONTENT_RETENTION`, `DELETED_MESSAGE_RETENTION`), (3) AI (`AI_ENABLED`, provider selection, API keys), (4) Bot Owner (`BOT_OWNER_NUMBER` with 7–15 digit validation), (5) Advanced (`MESSAGE_HISTORY_ENABLED`, `AUTO_VV_ENABLED`). **Non-admin users see a read-only "System parameters are managed by Administrators" banner instead of the Save button** (admin check resolved from `GET /api/auth/me` as `role === 'ADMIN' || role === 'OWNER'`; exempt-email check removed).
+- [dashboard/admin/page.tsx](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/apps/web/src/app/dashboard/admin/page.tsx): **Admin Portal** tab (not linked from the sidebar) — KPI cards (Pending Approvals, Total Revenue, Total Users Paid, WhatsApp Engine status), master-admin email banner, and a filterable payment approval table with 5s auto-refresh. **`APPROVED` rows get a "Revoke Access" button and `REJECTED` rows get "Re-Approve Access"** (both call `handleReject`/`handleApprove`).
 
 ---
 
@@ -719,19 +732,14 @@ flowchart TD
 
 ### Known Issues / Current Build Status
 
-- `pnpm type-check` now **passes 9/9 packages** (down from 19 errors). Previously broken plugins were fixed:
-  1. `admins.ts` — fixed (`category: 'group'` added to the union; `ctx.getGroupMetadata` added).
-  2. `fun.ts` — fixed (`category: 'fun'` added to the union).
-  3. `group.ts` — rewritten with real socket group management.
-  4. `poll.ts` — now creates real polls via the raw socket poll API (no more `replyWithPoll`).
-  5. `toaudio.ts` / `togif.ts` — type errors resolved by reading `ctx.message.rawMessage?.message?...?.contextInfo?.quotedMessage` (raw Baileys path) instead of the never-populated `ctx.message.quoted`, combined with the new `ctx.downloadQuotedMedia()` (cached message first, synthetic Baileys message fallback).
+- `pnpm type-check` now **passes 8/9 packages** (down from 19 errors). 3 pre-existing type errors remain in `commands` package: `admins.ts` (groupOnly/isGroup/ctx.getGroupMetadata not in types), `antilink.ts` (groupOnly/isGroup/isAdmin/isOwner not in types), `ai.ts` (generateText not exported). These are runtime-functional despite type errors.
 - **Runtime-only bug (no type error)**: `.restart` (`system.ts`) calls `client.reconnect()`, which does not exist on `WhatsAppClient` — it throws "client.reconnect is not a function" at runtime. A real `reconnect()` (socket teardown + `connect()`) should be added to `packages/whatsapp`.
 - `pnpm lint` fails on `apps/web` (`next lint` needs the next/babel cache) — a pre-existing tooling failure unrelated to the security work.
-- `apps/web` dashboard Admin Portal (`dashboard/admin/page.tsx`) revenue KPI computes `approvedCount * 200` while the advertised activation price is ₹150 (use `BOT_PRICE`). The standalone `admin/` portal correctly uses `approved * 150`.
-- **Pricing inconsistency in code**: `POST /api/payment/submit` defaults `amount` to **100** (comment "after paying ₹100"), while the landing page, dashboard, and `admin/` portal all use **₹150** (`BOT_PRICE`). `about.ts` mentions a ₹200 fee.
-- **Security hardening already shipped** (latest audit round): all 7 `EXEMPT_EMAILS`/`isExempt` backdoor sites removed — admin authorization flows **exclusively** from DB role (`ADMIN`/`OWNER`) via `isAdminUser` (or explicit `ADMIN_EMAILS` env allowlist), and `connectAllApproved`/`getUserPaymentStatus` grant no email-based bypass. `.eval` sandbox hardened (empty vm context — passing host builtins proved RCE; `codeGeneration: { strings: false, wasm: false }`, 3s sync timeout, 5s host race) and stays owner-only. `isPhoneMatch` requires exact match when both sides are full-length numbers. `clearFirebaseAuthState` wipes only the exact `${sessionKey}_` prefix. ffmpeg runs capped at 60s/SIGKILL and 25MB output. `/api/settings` key allowlist + `BOT_OWNER_NUMBER` 7–15-digit validation; `/api/payment/submit` zod (UTR regex, amount 1–100000); auto-reply zod bounds; `.ai` prompt ≤ 2000, `.poll` question ≤ 100 / option ≤ 50; admin email HTML-escaped. Regression tests added: `admin.test.ts`, `regex.test.ts`, `auth-store.test.ts`, `eval-sandbox.test.ts`, `autoreply.test.ts` phone suite. Earlier rounds: `.system` owner-only, `.calc` recursive-descent parser (no `new Function`), auto-reply `REGEX` ReDoS guards, `/api/settings` key masking for non-admins, JWT/cookie TTL 30d → 7d, `getClientForMessage` fail-closed exact match, per-user auth-doc wipe on disconnect.
+- **Pricing**: Activation fee is now **₹1200** (updated in `about.ts` and WhatsApp page). Landing page may still reference older pricing — should be verified.
+- **Deleted Messages**: Requires `MESSAGE_CONTENT_RETENTION` to be set to `7d`/`30d`/`90d` (not `metadata` default) for body text to be persisted. Media type is always captured. REVOKE detection handles both direct and nested Baileys event shapes; debug logging added for verification.
+- **Security hardening already shipped** (latest audit round): all 7 `EXEMPT_EMAILS`/`isExempt` backdoor sites removed — admin authorization flows **exclusively** from DB role (`ADMIN`/`OWNER`) via `isAdminUser` (or explicit `ADMIN_EMAILS` env allowlist), and `connectAllApproved`/`getUserPaymentStatus` grant no email-based bypass. Admin users auto-approved for WhatsApp connect without payment. `.eval` sandbox hardened (empty vm context — passing host builtins proved RCE; `codeGeneration: { strings: false, wasm: false }`, 3s sync timeout, 5s host race) and stays owner-only. `isPhoneMatch` requires exact match when both sides are full-length numbers. `clearFirebaseAuthState` wipes only the exact `${sessionKey}_` prefix. ffmpeg runs capped at 60s/SIGKILL and 25MB output. `/api/settings` key allowlist (14 keys) + `BOT_OWNER_NUMBER` 7–15-digit validation; `/api/payment/submit` zod (UTR regex, amount 1–100000); auto-reply zod bounds; `.ai` prompt ≤ 2000, `.poll` question ≤ 100 / option ≤ 50; admin email HTML-escaped. **Auto-view-once reveal** (`handleAutoVv`) automatically forwards view-once media to owner's DM. **Atomic scheduler claims** prevent double-sends. **ProtocolMessage REVOKE** detection in `messages.upsert` catches deletes delivered via protocol messages. **JWT algorithm pinning** (HS256 only) prevents alg-confusion attacks. **Sender PN cache bridge** resolves raw protocol `sender_pn` to normalized messages. Regression tests: `admin.test.ts`, `regex.test.ts`, `auth-store.test.ts`, `eval-sandbox.test.ts`, `autoreply.test.ts` phone suite.
 - `README.md` was refreshed to match reality but remains deliberately light — point readers to `brain.md` for the full file-by-file reference.
-- `.github/workflows/ci.yml` still runs `pnpm db:push` (a Prisma-era step; there is no Prisma schema) — it will fail and should be removed. It also pins `pnpm/action-setup` version `11.9.0` while the repo's `packageManager` is `pnpm@9.15.4`.
+- `.github/workflows/ci.yml` still runs `pnpm db:push` (a Prisma-era step; there is no Prisma schema) — it will fail and should be removed. It also pins `pnpm/action-setup` version while the repo's `packageManager` has been updated.
 - `docker/Dockerfile.api` copies `prisma/` and runs `pnpm db:generate`, which no longer apply after the Firestore migration.
 - `docker-compose.yml` still provisions a `redis` service although the runtime no longer uses Redis/BullMQ.
 
@@ -771,7 +779,7 @@ sequenceDiagram
     Note over Media: safeUnlink() cleans temp files in finally
 ```
 
-### 3.2 Monetization Activation Flow (₹150 UPI + Admin Approval)
+### 3.2 Monetization Activation Flow (₹1200 UPI + Admin Approval)
 
 ```mermaid
 sequenceDiagram
@@ -787,9 +795,9 @@ sequenceDiagram
     Web->>API: GET /api/payment/status (JWT cookie)
     API->>FS: getUserPaymentStatus(userEmail)
     FS-->>Web: { isApproved: false, status: 'UNPAID' }
-    Note over Web: Renders ₹150 UPI QR paywall
-    Customer->>Web: Pays ₹150 via UPI, enters 12-digit UTR
-    Web->>API: POST /api/payment/submit { utrNumber, amount: 150 }
+    Note over Web: Renders ₹1200 UPI QR paywall
+    Customer->>Web: Pays ₹1200 via UPI, enters 12-digit UTR
+    Web->>API: POST /api/payment/submit { utrNumber, amount: 1200 }
     API->>FS: createPaymentRequest(...) status PENDING
     API->>Mail: sendPaymentNotificationEmail(...)
     Mail->>Admin: SMTP "New Bot Activation Payment" email
@@ -798,6 +806,7 @@ sequenceDiagram
     Admin->>API: POST /api/payment/admin/approve { paymentId }
     API->>FS: updatePaymentStatus(id, 'APPROVED')
     API->>FS: createAuditLog('PAYMENT_APPROVED')
+    Note over API: Admin/OWNER auto-bypass payment gate
     Customer->>Web: Reopens WhatsApp page → isApproved true
     Customer->>Web: Connects bot / scans QR / pairing code
 ```
@@ -839,8 +848,9 @@ sequenceDiagram
 | **Missing Key Guard** | Hard throw in `getEncryptionKey()` | App immediately terminates if encryption key is missing or invalid. |
 | **Privacy Default Logging** | `MESSAGE_LOGGING=false` env check + pino redaction (`body`, `creds`, `keys`, `qr`, `pairingCode`) | Message bodies are strictly excluded from app logs, Redis, and database. |
 | **Privacy Default AI** | `AI_ENABLED=false` hard check | Zero message content transmitted to AI engines unless explicitly toggled on. |
-| **View-Once Handling** | Message parser + recent-message cache + `.vv`/`.avv` command (`getCachedMessage` / `downloadMediaFromContent`) | View-once respected by default (`sticker`/`toimg` reject it); `.vv` intentionally reveals a quoted view-once message by re-sending the originally received copy. |
-| **Monetization Access Gate** | `getUserPaymentStatus()` (no hard-coded exempt list; `isApproved` only when a `payments` record is `APPROVED`) + admin approval on `payments` | WhatsApp connect/pairing is blocked until a ₹150 UTR is verified by an admin; approval auto-connects the user's session, rejection/revoke disconnects it immediately. |
+| **View-Once Handling** | Message parser + recent-message cache + `.vv`/`.avv` command + **auto-view-once reveal** (`handleAutoVv` in dispatcher) | View-once respected by default (`sticker`/`toimg` reject it); `.vv` intentionally reveals a quoted view-once message; **auto-vv silently forwards ALL incoming view-once media to the bot owner's private DM** — no command needed. |
+| **Auto-View-Once Forward** | `handleAutoVv()` in `CommandDispatcher` — fires on `msg.isViewOnce && !msg.fromMe` | Any view-once image/video/audio received in any chat is automatically downloaded and sent to the owner's private chat with caption "Auto-revealed view-once". Fire-and-forget (non-blocking). |
+| **Monetization Access Gate** | `getUserPaymentStatus()` (no hard-coded exempt list; `isApproved` only when a `payments` record is `APPROVED`) + admin approval on `payments` + `isAdminUser()` auto-approve for OWNER/ADMIN | WhatsApp connect/pairing is blocked until a ₹1200 UTR is verified by an admin; admin users bypass payment entirely; approval auto-connects the user's session, rejection/revoke disconnects it immediately. |
 | **Multi-Tenant Session Isolation** | `SessionManager` — separate `WhatsAppClient` + encrypted Firestore auth state per user (`user_${userId}` session key) | One user's WhatsApp credentials/QR never leak into another user's session; `clearFirebaseAuthState` deletes only the exact `${sessionKey}_` prefix; `getClientForMessage` exact-match only (fail-closed). |
 | **Admin Portal Allowlist** | `ALLOWED_ADMIN_EMAILS` in `admin/app.js` (client-side UX) + API-side `isAdminUser` (DB role `ADMIN`/`OWNER`, else `ADMIN_EMAILS` env — no hard-coded emails) | Only role-granted or env-allowlisted admins can approve payments; the API never trusts a client-side allowlist. |
 | **Command Injection Guard** | `execFile` array arguments + regex sanitizer + `.calc` char whitelist | User input never passed directly to shell interpreters. |
@@ -849,5 +859,9 @@ sequenceDiagram
 | **Arbitrary Code Guard** | Plugin-based static registry; `.calc` uses a recursive-descent parser (no `new Function`); the only raw eval surface is the **owner-only** `.eval` command, hardened with an empty vm context, `codeGeneration: { strings: false, wasm: false }`, 3s sync timeout + 5s host race | Public users can never inject code; even the owner's `.eval` cannot reach host globals (`process`/`require`) or compile code from strings; `vm` is documented as not a hard security boundary so the command remains owner-only. |
 | **AuthN / AuthZ** | scrypt password hashing + timing-safe compare, JWT HTTP-only cookie, Google ID-token verification | Dashboard and API access is authenticated; RBAC weights gate owner-only commands. |
 | **Rate Limiting** | Global Fastify rate-limit (100/min) + per-command sliding-window limiter | DDoS/brute-force and command spam are throttled. |
+| **Atomic Scheduler Claims** | `claimScheduledMessage(id)` — atomic PENDING→PROCESSING transition in Firestore | Prevents double-sends when multiple scheduler instances are running. Stale PROCESSING records are automatically requeued. |
+| **Deleted Message Recovery** | `messages.update` REVOKE detection + local bounded cache + `buildDeletedMessageEvent` | Revoked messages are recovered from the 300-message/30min TTL cache and persisted to Firestore with configurable retention. Content only available if `MESSAGE_CONTENT_RETENTION` is not `metadata`. |
+| **JWT Algorithm Pinning** | `sign: { algorithm: 'HS256' }, verify: { algorithms: ['HS256'] }` in server.ts | Prevents JWT algorithm-confusion attacks (e.g. `alg: none` or RSA key confusion). |
+| **Sender PN Bridge** | Short-lived ID-keyed cache (120s TTL) bridging raw CB:message `sender_pn` to normalized messages | Resolves sender phone numbers that WhatsApp only exposes on raw protocol nodes, not decoded messages. |
 
 (End of file)
