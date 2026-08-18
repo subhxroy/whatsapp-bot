@@ -148,9 +148,10 @@ export class SessionManager {
         originalMessageId: event.deletedMessageId,
         originalTimestamp: event.originalTimestamp,
         deletedAt: new Date(event.deletedAt * 1000).toISOString(),
-        contentAvailable: !!body,
+        contentAvailable: !!body || event.hasMedia || event.contentAvailable,
         retainedUntil: retainedUntilIso(env.DELETED_MESSAGE_RETENTION),
       };
+      logger.info({ userId, deletedId: event.deletedMessageId, chatId: event.chatId }, '[DELETED] Persisted to database');
       await db.createDeletedMessage(record);
     } catch (err) {
       logger.error({ err, userId }, 'Failed to persist deleted message');

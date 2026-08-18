@@ -164,7 +164,7 @@ export function extractRecoveredContent(cached: proto.IWebMessageInfo): Recovere
     mediaType,
     quotedId: extractQuotedId(cached.message),
     originalTimestamp: messageTimestampMs(cached),
-    contentAvailable: !!body,
+    contentAvailable: !!body || !!mediaType,
   };
 }
 

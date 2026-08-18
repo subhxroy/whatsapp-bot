@@ -178,7 +178,9 @@ export default function DeletedMessagesPage() {
                     </td>
                     <td className="py-4 px-6 max-w-xs">
                       {m.contentAvailable ? (
-                        <span className="font-medium text-[#070607]/80 break-words line-clamp-3">{m.body}</span>
+                        <span className="font-medium text-[#070607]/80 break-words line-clamp-3">
+                          {m.body || (m.hasMedia ? `[Deleted ${m.mediaType || 'Media'}]` : 'Empty message')}
+                        </span>
                       ) : (
                         <span className="rounded-full bg-[#e2e2df] px-3 py-1 text-[11px] font-semibold text-[#070607]/60">
                           Content not available

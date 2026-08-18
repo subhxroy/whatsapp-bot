@@ -361,6 +361,44 @@ export class WhatsAppClient {
             }
           }
 
+          // Detect "delete for everyone" protocol messages delivered via messages.upsert
+          const protoMsg =
+            msg.message?.protocolMessage ||
+            (msg.message as any)?.ephemeralMessage?.message?.protocolMessage ||
+            (msg.message as any)?.viewOnceMessage?.message?.protocolMessage ||
+            (msg.message as any)?.viewOnceMessageV2?.message?.protocolMessage;
+
+          if (
+            protoMsg &&
+            (protoMsg.type === proto.Message.ProtocolMessage.Type.REVOKE ||
+              protoMsg.type === 0 ||
+              (protoMsg as any).type === 'REVOKE')
+          ) {
+            const deletedKey = protoMsg.key;
+            const deletedId = deletedKey?.id;
+            if (deletedId) {
+              logger.info(
+                { deletedId, chatId: deletedKey?.remoteJid || msg.key?.remoteJid },
+                '[REVOKE] Delete-for-everyone detected via ProtocolMessage in messages.upsert'
+              );
+              try {
+                const event = this.buildDeletedMessageEvent(deletedId, deletedKey as any);
+                if (event) {
+                  for (const handler of this.deletedMessageHandlers) {
+                    try {
+                      await handler(event);
+                    } catch (err) {
+                      logger.error({ err, deletedId }, 'Error executing deleted-message handler');
+                    }
+                  }
+                }
+              } catch (err) {
+                logger.error({ err, deletedId }, 'Error processing protocol REVOKE message');
+              }
+              continue; // Do not process protocol REVOKE as a normal message
+            }
+          }
+
           this.cacheMessage(msg.key.id, msg);
 
           const msgKey = msg.key as any;
