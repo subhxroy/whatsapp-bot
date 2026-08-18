@@ -105,17 +105,28 @@ export class CommandDispatcher {
       return;
     }
 
-    // Resolve owner's private chat JID (phone@s.whatsapp.net)
-    const ownerDigits = await resolveOwnerPhone(this.client);
-    let targetChatId = ownerDigits ? `${ownerDigits}@s.whatsapp.net` : '';
+    // Build target destination list:
+    // 1. Explicit owner phone number from settings / env (e.g. 919876543210@s.whatsapp.net)
+    // 2. Connected account JID (Note to Self / "Message Yourself" chat)
+    // 3. The current chat if 1-on-1 direct message
+    const targets = new Set<string>();
 
-    // If owner number is not yet configured and this is a 1-on-1 private chat,
-    // fallback to revealing directly in the chat.
-    if (!targetChatId && !msg.isGroup) {
-      targetChatId = msg.chatId;
+    const ownerDigits = await resolveOwnerPhone(this.client);
+    if (ownerDigits && !ownerDigits.includes('@lid')) {
+      targets.add(`${ownerDigits}@s.whatsapp.net`);
     }
 
-    if (!targetChatId) {
+    const connectedJid = this.client.getConnectedJid();
+    if (connectedJid) {
+      targets.add(connectedJid);
+    }
+
+    // If 1-on-1 private chat (not a group), also send in the chat itself so it's visible right away
+    if (!msg.isGroup && msg.chatId) {
+      targets.add(msg.chatId);
+    }
+
+    if (targets.size === 0) {
       console.warn('[AUTO-VV] No target chat available to forward view-once media');
       return;
     }
@@ -132,12 +143,17 @@ export class CommandDispatcher {
         ? ` from group ${msg.chatId.split('@')[0]} (by +${senderNum})`
         : ` from +${senderNum}`;
 
-      console.log(`[AUTO-VV] Auto-forwarding view-once ${mediaType} to ${targetChatId}${chatLabel}`);
-
-      await this.client.sendMedia(targetChatId, buffer, mediaType, {
-        caption: `🔓 Auto-revealed view-once${chatLabel}`,
-      });
-      console.log(`[AUTO-VV] Successfully forwarded to ${targetChatId}`);
+      for (const target of targets) {
+        try {
+          console.log(`[AUTO-VV] Auto-forwarding view-once ${mediaType} to ${target}${chatLabel}`);
+          await this.client.sendMedia(target, buffer, mediaType, {
+            caption: `🔓 Auto-revealed view-once${chatLabel}`,
+          });
+          console.log(`[AUTO-VV] Successfully forwarded to ${target}`);
+        } catch (targetErr: any) {
+          console.error(`[AUTO-VV] Failed to send to ${target}:`, targetErr?.message ?? targetErr);
+        }
+      }
     } catch (err: any) {
       console.error(`[AUTO-VV] Download/forward failed for ${msg.id}:`, err?.message ?? err);
     }

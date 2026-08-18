@@ -61,6 +61,8 @@ export class WhatsAppClient {
   private static readonly MESSAGE_CACHE_TTL_MS = 30 * 60 * 1000;
   private static readonly SENDER_PN_CACHE_TTL_MS = 120_000;
 
+  private processedRevokeIds = new Set<string>();
+
   constructor(sessionKey: string = 'default_session', userId?: string) {
     this.sessionKey = sessionKey;
     this.userId = userId ?? (sessionKey.startsWith('user_') ? sessionKey.replace(/^user_/, '') : sessionKey);
@@ -75,6 +77,32 @@ export class WhatsAppClient {
    */
   public getConnectedPhone(): string | null {
     return this.connectedPhone;
+  }
+
+  /** The JID of the connected WhatsApp account (e.g. 919864149429:12@s.whatsapp.net or LID). */
+  public getConnectedJid(): string | null {
+    return this.socket?.user?.id ?? null;
+  }
+
+  private emitDeletedMessage(event: DeletedMessageEvent): void {
+    if (this.processedRevokeIds.has(event.deletedMessageId)) {
+      logger.info({ deletedId: event.deletedMessageId }, '[REVOKE] Duplicate revoke event ignored');
+      return;
+    }
+    this.processedRevokeIds.add(event.deletedMessageId);
+    if (this.processedRevokeIds.size > 500) {
+      const first = this.processedRevokeIds.values().next().value;
+      if (first) this.processedRevokeIds.delete(first);
+    }
+    for (const handler of this.deletedMessageHandlers) {
+      try {
+        handler(event).catch((err) => {
+          logger.error({ err, deletedId: event.deletedMessageId }, 'Error executing deleted-message handler');
+        });
+      } catch (err) {
+        logger.error({ err, deletedId: event.deletedMessageId }, 'Error executing deleted-message handler');
+      }
+    }
   }
 
   public registerLidMapping(lid?: string, pnJid?: string): void {
@@ -385,13 +413,7 @@ export class WhatsAppClient {
               try {
                 const event = this.buildDeletedMessageEvent(deletedId, deletedKey as any);
                 if (event) {
-                  for (const handler of this.deletedMessageHandlers) {
-                    try {
-                      await handler(event);
-                    } catch (err) {
-                      logger.error({ err, deletedId }, 'Error executing deleted-message handler');
-                    }
-                  }
+                  this.emitDeletedMessage(event);
                 }
               } catch (err) {
                 logger.error({ err, deletedId }, 'Error processing protocol REVOKE message');
@@ -493,13 +515,7 @@ export class WhatsAppClient {
               logger.warn({ deletedId }, '[REVOKE] No cached message found — metadata only');
               continue;
             }
-            for (const handler of this.deletedMessageHandlers) {
-              try {
-                await handler(event);
-              } catch (err) {
-                logger.error({ err, deletedId }, 'Error executing deleted-message handler');
-              }
-            }
+            this.emitDeletedMessage(event);
           } catch (err) {
             logger.error({ err, deletedId }, 'Error processing REVOKE update');
           }

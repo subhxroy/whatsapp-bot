@@ -88,9 +88,9 @@ flowchart TD
 1. **Isolated Protocol Layer (`packages/whatsapp`)**: Baileys protocol code is strictly encapsulated inside `packages/whatsapp`. The rest of the application interacts with WhatsApp only through clean internal interfaces.
 2. **Session Security at Rest**: Baileys auth keys and credentials are encrypted using Node.js `crypto` **AES-256-GCM** before being stored in Firestore (`sessions` collection) via the `firebase-admin` SDK. If `SESSION_ENCRYPTION_KEY` is missing or invalid, the app fails securely.
 3. **Mandatory Privacy Defaults**: `MESSAGE_LOGGING=false` and `AI_ENABLED=false` are default settings. No message content is written to disk or logs unless explicitly enabled.
-4. **View-Once Media Handling**: View-once media is respected by default — `sticker` and `toimg` reject it. A dedicated `.vv` / `.avv` command allows revealing view-once media: it looks up the **originally received message** from the client's recent-message cache, downloads it, and re-sends it as normal saveable media.
-5. **Monetization Gate**: WhatsApp connection (QR + pairing) is gated behind a **₹150 one-time UPI activation payment** + admin approval. Payment requests are stored in Firestore (`payments`), verified by an admin (dashboard Admin Portal or the standalone `admin/` portal). **There are NO hard-coded exempt emails** — access is granted only by DB role (`ADMIN`/`OWNER`) or an approved `payments` record, so no email bypasses the gate in code.
-6. **Scheduled Delivery Engine**: `.birthday` / `.schedule` (and the dashboard Schedule page → `POST /api/scheduled-messages`) queue messages in Firestore (`scheduledMessages`); a background scheduler in `apps/api` polls every **5 seconds** and delivers them at the scheduled minute through the sender's connected session, notifying the sender in their self-chat.
+4. **View-Once Media Handling**: View-once media is respected by default — `sticker` and `toimg` reject it. A dedicated `.vv` / `.avv` command allows revealing view-once media: it looks up the **originally received message** from the client's recent-message cache, downloads it, and re-sends it as normal saveable media. **Auto-view-once reveal** (`handleAutoVv` in `dispatcher.ts`): any incoming view-once message (image/video/audio) from any chat is automatically downloaded and forwarded to the bot owner's private DM — no `.vv` command needed. The caption includes "from {group number}" for group messages.
+5. **Monetization Gate**: WhatsApp connection (QR + pairing) is gated behind a **₹1200 one-time UPI activation payment** + admin approval. Payment requests are stored in Firestore (`payments`), verified by an admin (dashboard Admin Portal or the standalone `admin/` portal). **There are NO hard-coded exempt emails** — access is granted only by DB role (`ADMIN`/`OWNER`) or an approved `payments` record, so no email bypasses the gate in code. Admin users (`isAdminUser`) are auto-approved without payment.
+6. **Scheduled Delivery Engine**: `.birthday` / `.schedule` (and the dashboard Schedule page → `POST /api/scheduled-messages`) queue messages in Firestore (`scheduledMessages`); a background scheduler in `apps/api` polls every **5 seconds** with **atomic claims** (PENDING→PROCESSING transition prevents double-sends across instances), delivers them at the scheduled minute through the sender's connected session, and writes 12 delivery event types (CREATED/SENT/FAILED/etc.) to the schedule event history.
 7. **Zero Telemetry**: No third-party analytics, remote tracking, or cloud bot host dependencies beyond Firebase/Render/Netlify infra.
 8. **Deployment Split**: Dashboard + static sites are hosted on Netlify; the API/bot runtime is hosted on Render; `docker-compose.yml` remains available for fully self-hosted deployments.
 
@@ -106,7 +106,7 @@ flowchart TD
 - **Purpose**: Root package manifest for the monorepo workspace.
 - **Key Fields & Responsibilities**:
   - `name`: `"private-md-bot-monorepo"`, `private: true`, `version: "1.0.0"`.
-  - `packageManager`: `"pnpm@9.15.4"` (Pinned to satisfy Netlify Corepack; previously `11.9.0`).
+   - `packageManager`: `"pnpm@10.34.5"` (Pinned for monorepo consistency).
   - `engines.node`: `>=20.0.0`.
   - `scripts`:
     - `build`: `turbo run build` (Executes build tasks across workspace in dependency order).
@@ -147,7 +147,7 @@ flowchart TD
   - `FIREBASE_SERVICE_ACCOUNT_PATH`: Path to the Firebase service account JSON key. Alternatives: inline `FIREBASE_SERVICE_ACCOUNT` JSON or `GOOGLE_APPLICATION_CREDENTIALS`. Local emulator only: `FIREBASE_PROJECT_ID` + `FIRESTORE_EMULATOR_HOST`.
   - `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`: Firebase **web SDK** config inlined into the dashboard at build time for Google sign-in. MUST be the same project as the service account. Next.js reads these from `apps/web/.env.local`.
   - `REDIS_URL`: Redis connection string (`redis://localhost:6379`). **Legacy** — the runtime no longer uses Redis/BullMQ (audit logging writes straight to Firestore), so this is not required.
-  - Privacy flags: `MESSAGE_LOGGING=false`, `AI_ENABLED=false`, `MEDIA_RETENTION=temporary`, `ANALYTICS=false`, `THIRD_PARTY_TRACKING=false`.
+  - Privacy flags: `MESSAGE_LOGGING=false`, `MESSAGE_CONTENT_RETENTION=90d` (controls body storage for deleted messages; options: `metadata`/`7d`/`30d`/`90d`), `DELETED_MESSAGE_RETENTION=90d` (how long deleted message records are kept), `AI_ENABLED=false`, `MEDIA_RETENTION=temporary`, `ANALYTICS=false`, `THIRD_PARTY_TRACKING=false`.
   - `BOT_OWNER_NUMBER`: Phone number of bot owner (digits only or JID).
   - AI keys: `GEMINI_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OLLAMA_BASE_URL`.
   - (Not documented in the example but read by `email.ts`: `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_PORT`, `SMTP_SECURE`.)
@@ -185,7 +185,7 @@ flowchart TD
 - **Purpose**: Netlify deployment config for the Next.js dashboard.
 - **Settings**:
   - `build.command`: `pnpm --filter @private-md-bot/web build`; `publish`: `apps/web/.next`.
-  - `build.environment`: `NODE_VERSION=20.18.0`, `PNPM_VERSION=9.15.4`, `NETLIFY_USE_PNPM=true`.
+   - `build.environment`: `NODE_VERSION=20.18.0`, `PNPM_VERSION=10.34.5`, `NETLIFY_USE_PNPM=true`.
   - `[[redirects]]`: `/api/*` → `https://caldera-bot-api.onrender.com/api/:splat` (status 200, proxies API calls to the Render backend).
 
 #### 11. [render.yaml](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/render.yaml)
@@ -233,20 +233,25 @@ flowchart TD
 #### 17. [packages/database/src/index.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/database/src/index.ts)
 - **Purpose**: Firestore data-access layer via the `firebase-admin` SDK. Exports `db` (a typed object of CRUD helpers), `getDb()`, and types.
 - **Collections** (doc id in parentheses):
-  - `users` (doc id = `username`): `id`, `username`, `passwordHash`, `totpSecret`, `totpEnabled`, `googleUid`, `role`, `createdAt`, `updatedAt`.
+  - `users` (doc id = `username`): `id`, `username`, `passwordHash`, `totpSecret`, `totpEnabled`, `googleUid`, `role`, `connectedPhone?` (captured on WhatsApp connect, persisted to Firestore for dashboard display), `createdAt`, `updatedAt`.
   - `sessions` (doc id = `${sessionKey}_${key}`): `sessionKey`, `encryptedData` [AES-256-GCM Base64], `updatedAt`.
   - `commandConfigs` (doc id = `name`): `name`, `enabled`, `aliases`, `cooldown`, `ownerOnly`, `description`, `category`, `updatedAt`.
   - `autoReplies` (auto doc id): `userId?`, `trigger`, `matchType` (`EXACT`/`CONTAINS`/`STARTS_WITH`/`ENDS_WITH`/`REGEX`/`ANY`), `specificNumber?`, `response`, `enabled`, `priority`, `cooldown`, `createdAt`, `updatedAt`.
   - `settings` (doc id = `key`): `key`, `value`, `description`, `updatedAt`.
   - `auditLogs` (auto doc id): `action`, `actor`, `details`, `ipAddress`, `createdAt`.
   - `payments` (auto doc id): `userId`, `userEmail`, `utrNumber`, `amount`, `status` (`PENDING`/`APPROVED`/`REJECTED`), `createdAt`, `updatedAt`.
-  - `scheduledMessages` (auto doc id): `userId?`, `targetNumber`, `targetJid`, `message`, `scheduledAt`, `senderJid`, `type` (`BIRTHDAY`/`SCHEDULED`), `status` (`PENDING`/`SENT`/`FAILED`), `createdAt`.
+  - `scheduledMessages` (auto doc id): `userId?`, `targetNumber`, `targetJid`, `message`, `scheduledAt`, `senderJid`, `type` (`BIRTHDAY`/`SCHEDULED`), `status` (`PENDING`/`PROCESSING`/`SENT`/`FAILED`), `createdAt`. **Atomic claims**: status transitions `PENDING→PROCESSING→SENT` prevent double-sends across instances.
+  - `scheduleEvents` (auto doc id): `scheduleId`, `event` (12 types: `CREATED`/`UPDATED`/`DELETED`/`CANCELLED`/`PAUSED`/`RESUMED`/`DUPLICATED`/`RETRIED`/`DELIVERY_ATTEMPT`/`SENT`/`FAILED`/`REQUEUED`), `details?`, `createdAt`.
+  - `deletedMessages` (auto doc id): `userId`, `chatId`, `senderJid`, `senderNumber`, `senderResolved`, `fromMe`, `messageType`, `body?`, `hasMedia`, `mediaType?`, `originalMessageId`, `originalTimestamp?`, `deletedAt`, `contentAvailable`, `retainedUntil`. **Auto-persisted** when a REVOKE event is detected; content retained per `MESSAGE_CONTENT_RETENTION` setting (default `90d`).
+  - `messageHistory` (auto doc id): `messageId`, `chatId`, `senderJid`, `senderNumber`, `fromMe`, `isGroup`, `messageType`, `body?`, `hasMedia`, `mediaType?`, `isViewOnce`, `timestamp`. **Bounded buffer** flushed every 10s in batches of 50; enabled via `MESSAGE_HISTORY_ENABLED`.
 - **Notable helpers**:
-  - Users: `countUsers`, `getAllUsers`, `createUser`, `findUserByUsername`, `findUserById`, `setUserGoogleUid`. `findUserByUsername`/`findUserById` fall back to a `where('email'|'id', ...)` lookup so email-identified Google users resolve.
-  - Sessions: `getSession`/`upsertSession`/`deleteSession`.
+  - Users: `countUsers`, `getAllUsers`, `createUser`, `findUserByUsername`, `findUserById`, `setUserGoogleUid`, `setUserConnectedPhone(userId, phone)`. `findUserByUsername`/`findUserById` fall back to a `where('email'|'id', ...)` lookup so email-identified Google users resolve.
+  - Sessions: `getSession`/`upsertSession`/`deleteSession`/`hasSavedSession(sessionKey)` (checks if any docs with the given prefix exist — used at startup to skip auto-connecting users without saved credentials).
   - Settings/commands/auto-replies/audit logs: unchanged set of CRUD helpers. `getAuditLogs` uses `orderBy('createdAt','desc').offset().limit()`. **Auto-replies are per-user scoped**: `getAutoReplies(userId?, isOwnerOrAdmin?)` / `createAutoReply` (stores `userId`) / `updateAutoReply(id, data, userId?, isAdmin?)` / `deleteAutoReply(id, userId?, isAdmin?)` — non-admin callers only see/edit/delete their own rules (`userId` match), admins see all; `getEnabledAutoReplies(userId?)` feeds the runtime auto-reply engine per session.
   - Payments: `createPaymentRequest`, `getPaymentRequests` (newest first), `getUserPaymentStatus(userIdOrEmail)` — queries `payments` by **`userId` OR `userEmail`**, returns `{ isApproved, status, request? }`. **No hard-coded exempt list** (the inline `EXEMPT_EMAILS` grant was removed): `isApproved` is `true` only when the user's payment record `status === 'APPROVED'`; no record → `{ isApproved: false, status: 'UNPAID' }`. `updatePaymentStatus(id, 'APPROVED'|'REJECTED')`.
-  - Scheduled: `createScheduledMessage` (stores `userId`), `getPendingScheduledMessages` (`status == 'PENDING'`), `getScheduledMessages(userId?, isOwnerOrAdmin?)` (per-user filtered for non-admins), `deleteScheduledMessage(id, userId?, isAdmin?)` (ownership-checked), `markScheduledMessageSent`.
+  - Scheduled: `createScheduledMessage` (stores `userId`), `getPendingScheduledMessages` (`status == 'PENDING'`), `claimScheduledMessage(id)` (atomic `PENDING→PROCESSING` transition), `transitionScheduledMessage(id, from, to)` (generic atomic status transition), `requeueStaleProcessing(staleMs)` (resets stuck `PROCESSING` records back to `PENDING`), `getScheduledMessages(userId?, isOwnerOrAdmin?)` (per-user filtered for non-admins), `deleteScheduledMessage(id, userId?, isAdmin?)` (ownership-checked), `markScheduledMessageSent`.
+  - Deleted Messages: `createDeletedMessage(record)`, `listDeletedMessages(options)` (paginated, filtered by userId/chatId/search), `deleteDeletedMessage(id, userId?, isOwnerOrAdmin?)`, `deleteExpiredDeletedMessages()` (purges records past `retainedUntil`).
+  - Message History: `appendMessageHistory(userId, entries)` (batch insert), `getMessageHistory(userId, options)` (paginated), `pruneMessageHistory(olderThan, keepCount)`.
   - Health: `ping()`.
 - **Resilience**: every helper runs through `withRetry()`, which detects Firestore connection-closed errors (a `CLOSED_ERROR_PATTERNS` substring list: `closing`, `closed`, `hidden`, `unavailable`, `deadline_exceeded`, `not_found`, `goaway`, `rst_stream`, `channel shutdown`, `service unavailable`, `connection reset`, `socket hang up`, `econnreset`) and transparently `resetDb()`s before retrying once. `resetDb()` nulls the cached instance **and calls `deleteApp(getApp())`** so the Firebase Admin app is fully torn down before re-init.
 - **Design notes**: No composite indexes required for core reads. Credential resolution order in `getDb()`: `FIREBASE_SERVICE_ACCOUNT` (inline JSON) → files found at `FIREBASE_SERVICE_ACCOUNT_PATH` / `GOOGLE_APPLICATION_CREDENTIALS` → bundled candidates `openify-studio-firebase-adminsdk-fbsvc-8938483736.json` (repo-root) and `firebase-service-account.json` (searched relative to cwd, repo root, and `__dirname` `../../../`) → `FIREBASE_PROJECT_ID` (emulator only). Honors `FIRESTORE_EMULATOR_HOST`.
@@ -278,6 +283,9 @@ flowchart TD
   - Validates `SESSION_ENCRYPTION_KEY` is exactly 64 hex characters (has a dev default), `JWT_SECRET` min 16 chars.
   - Parses `PORT`/`NODE_ENV`, `API_URL`, `WEB_URL` (URL-validated).
   - Transforms string boolean flags (`MESSAGE_LOGGING`, `AI_ENABLED`, `ANALYTICS`, `THIRD_PARTY_TRACKING`) to native booleans.
+  - `MESSAGE_CONTENT_RETENTION`: enum `metadata`/`7d`/`30d`/`90d`, default `metadata`. Controls whether deleted-message body text is persisted (`metadata` strips all content).
+  - `DELETED_MESSAGE_RETENTION`: enum `24h`/`7d`/`30d`/`90d`/`forever`, default `7d`. Controls how long deleted-message records are kept before auto-purge.
+  - `MESSAGE_HISTORY_ENABLED`: string boolean, default `false`. Enables message-history buffering to Firestore.
   - `getEnv()`: Lazily evaluates `process.env` against schema and returns frozen `env` object; throws in production on validation failure. Also exports `env` (evaluated once at import).
 
 ---
@@ -347,7 +355,7 @@ flowchart TD
 - **Purpose**: Type declarations for WhatsApp adapter.
 - **Interfaces**:
   - `ConnectionStatus`: `'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'PAIRING'`.
-  - `NormalizedMessage`: `id`, `chatId`, `senderJid`, `senderNumber`, `pushName?`, `fromMe`, `isGroup`, `body`, `hasMedia`, `mediaType?` (`'image'|'video'|'audio'|'document'|'sticker'`), `isViewOnce`, `quotedMessage?` (optional; see note below), `rawMessage`.
+  - `NormalizedMessage`: `id`, `chatId`, `senderJid`, `senderNumber`, `senderResolved` (true when sender is a verified phone identity; false for unresolved LID), `pushName?`, `fromMe`, `isGroup`, `body`, `hasMedia`, `mediaType?` (`'image'|'video'|'audio'|'document'|'sticker'`), `isViewOnce`, `quotedMessage?` (optional; see note below), `rawMessage`.
   - `MessageHandler` / `StatusHandler` callback types.
   - **Note**: `quotedMessage` is declared on `NormalizedMessage` but **never populated** by `normalizeMessage()`. Plugins that need the quoted message (`.toaudio`, `.togif`) do **not** depend on it — they read `ctx.message.rawMessage?...?.contextInfo?.quotedMessage` directly and download via `ctx.downloadQuotedMedia()`.
 
@@ -366,7 +374,8 @@ flowchart TD
 - **Class**: `WhatsAppClient`
 - **Actual method surface** (verified against source — the doc previously listed methods that do NOT exist, e.g. `sendPoll`, `sendImageAsSticker`, `sendVideoAsGif`, `downloadQuotedMedia`, `getCachedQuotedMessage`, `reconnect`):
   - `getStatus()` / `getQRCode()`: current `ConnectionStatus` and cached QR string.
-  - `onMessage(handler)` / `onStatusChange(handler)`: subscribe handlers (returns unsubscribe).
+  - `getConnectedPhone()`: returns the phone number of the currently connected WhatsApp account (digits-only, captured from Baileys `connection.update` JID).
+  - `onMessage(handler)` / `onDeletedMessage(handler)` / `onHistoryMessage(handler)` / `onStatusChange(handler)`: subscribe handlers (returns unsubscribe).
   - `connect()`: loads auth state via `useFirebaseAuthState(this.sessionKey)`, initializes Baileys socket (`makeWASocket` with `syncFullHistory: false`, `generateHighQualityLinkPreview: true`), binds `creds.update` (`saveCreds`) and `connection.update` handlers, and registers LID-mapping listeners (`contacts.upsert`, `contacts.update`, `chats.phoneNumberShare`).
   - Reconnect Logic: Exponential backoff (`1000 * 2^attempts`, max 30s) on unexpected disconnects. `DisconnectReason.loggedOut` clears the Firestore auth store and reconnects after 500ms.
   - `requestPairingCode(phoneNumber)`: triggers Baileys pairing code flow (auto-connects first if no socket).
@@ -379,6 +388,9 @@ flowchart TD
   - **Message dedup**: `processedMsgIds` Set (capped at 1000) prevents double-processing on multi-device sync.
   - **History skip**: only `type === 'append'` messages older than 300 seconds (5 min) are dropped; live `notify` messages are always processed.
   - **Logging Guard**: Pino logger redacts `message.body`, `creds`, `keys`, `qr`, `pairingCode`; log lines omit body when `MESSAGE_LOGGING=false`.
+  - **Deleted Message Detection**: `messages.update` listener checks for `StubType.REVOKE` (handles both direct and nested update shapes across Baileys versions). On detection, builds a `DeletedMessageEvent` from the local cache (`buildDeletedMessageEvent`) and fires all registered `deletedMessageHandlers`.
+  - **Sender PN Cache Bridge**: Short-lived (120s TTL) ID-keyed cache bridging raw CB:message `sender_pn` attribute to normalized messages. WhatsApp exposes `sender_pn` only on the raw protocol node — it never reaches the decoded message or event payload, so this bridge is required for accurate sender identity.
+  - **Message History Events**: Emits `HistoryMessageEvent` for every incoming message (after normalization), enabling bounded history buffering in `SessionManager`.
 - **Note**: `quotedMessage` is declared on `NormalizedMessage` but never populated (see types.ts note). `.toaudio`/`.togif` bypass it via the raw `contextInfo` path + `downloadQuotedMedia()`.
 
 #### 36. [packages/whatsapp/src/index.ts](file:///c:/Users/Subhankar%20Roy/Downloads/wp_bot/packages/whatsapp/src/index.ts)
