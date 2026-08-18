@@ -655,7 +655,19 @@ export class WhatsAppClient {
       throw new Error(`No ${mediaType} payload found in message content`);
     }
 
-    const stream = await downloadContentFromMessage(mediaObj, mediaType);
+    let stream;
+    try {
+      stream = await downloadContentFromMessage(mediaObj, mediaType);
+    } catch (streamErr) {
+      if (mediaObj.directPath) {
+        stream = await downloadContentFromMessage(
+          { directPath: mediaObj.directPath, mediaKey: mediaObj.mediaKey } as any,
+          mediaType
+        );
+      } else {
+        throw streamErr;
+      }
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
       chunks.push(chunk);

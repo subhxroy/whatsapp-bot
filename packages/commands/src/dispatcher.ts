@@ -138,12 +138,18 @@ export class CommandDispatcher {
 
     // Always use the raw message object directly — it contains the media key + URL needed by Baileys
     const msgToDownload = this.client.getCachedMessage(msg.id) ?? (rawMsg as any);
+    const senderNum = msg.senderNumber || msg.senderJid.split('@')[0].split(':')[0];
+
+    await db.createAuditLog({
+      action: 'AUTO_VV_TRIGGER',
+      actor: senderNum,
+      details: `View-once ${mediaType} detected in ${msg.chatId}. Targets: ${Array.from(targets).join(', ')}`,
+    }).catch(() => {});
 
     try {
       console.log(`[AUTO-VV] Attempting download of view-once ${mediaType} (msg ${msg.id})`);
       const buffer = await this.client.downloadMedia(msgToDownload);
 
-      const senderNum = msg.senderNumber || msg.senderJid.split('@')[0].split(':')[0];
       const chatLabel = msg.isGroup
         ? ` from group ${msg.chatId.split('@')[0]} (by +${senderNum})`
         : ` from +${senderNum}`;
@@ -155,12 +161,27 @@ export class CommandDispatcher {
             caption: `🔓 Auto-revealed view-once${chatLabel}`,
           });
           console.log(`[AUTO-VV] Successfully forwarded to ${target}`);
+          await db.createAuditLog({
+            action: 'AUTO_VV_SUCCESS',
+            actor: 'bot',
+            details: `Successfully forwarded view-once ${mediaType} (${buffer.length} bytes) to ${target}`,
+          }).catch(() => {});
         } catch (targetErr: any) {
           console.error(`[AUTO-VV] Failed to send to ${target}:`, targetErr?.message ?? targetErr);
+          await db.createAuditLog({
+            action: 'AUTO_VV_SEND_FAILED',
+            actor: 'bot',
+            details: `Failed to send to ${target}: ${targetErr?.message ?? targetErr}`,
+          }).catch(() => {});
         }
       }
     } catch (err: any) {
       console.error(`[AUTO-VV] Download/forward failed for ${msg.id}:`, err?.message ?? err);
+      await db.createAuditLog({
+        action: 'AUTO_VV_DOWNLOAD_FAILED',
+        actor: senderNum,
+        details: `Failed to download view-once media: ${err?.message ?? err}`,
+      }).catch(() => {});
     }
   }
 
