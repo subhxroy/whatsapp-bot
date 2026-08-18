@@ -1214,7 +1214,8 @@ export const db = {
         };
       });
       if (options.userId && !options.isOwnerOrAdmin) {
-        list = list.filter((m) => m.userId === options.userId);
+        const alt = (options as any).altUserId;
+        list = list.filter((m) => !m.userId || m.userId === options.userId || (alt && m.userId === alt));
       }
       if (options.chatId) list = list.filter((m) => m.chatId === options.chatId);
       if (options.fromMe !== undefined) list = list.filter((m) => m.fromMe === options.fromMe);
@@ -1371,7 +1372,8 @@ export const db = {
         return { ...data, id: doc.id, userId: data.userId ?? null, timestamp: toDateString(data.timestamp) };
       });
       if (options.userId && !options.isOwnerOrAdmin) {
-        list = list.filter((m) => m.userId === options.userId);
+        const alt = (options as any).altUserId;
+        list = list.filter((m) => !m.userId || m.userId === options.userId || (alt && m.userId === alt));
       }
       if (options.chatId) list = list.filter((m) => m.chatId === options.chatId);
       if (options.senderNumber) list = list.filter((m) => m.senderNumber === options.senderNumber);

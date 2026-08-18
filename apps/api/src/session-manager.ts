@@ -132,8 +132,12 @@ export class SessionManager {
   private async persistDeletedMessage(userId: string, event: DeletedMessageEvent): Promise<void> {
     try {
       const env = getEnv();
-      const allowBody = contentBodyAllowed(env.MESSAGE_CONTENT_RETENTION);
-      const body = allowBody && event.body ? event.body : undefined;
+      let allowBody = true;
+      try {
+        const retSetting = await db.getSetting('MESSAGE_CONTENT_RETENTION');
+        if (retSetting?.value === 'metadata') allowBody = false;
+      } catch {}
+      const body = (allowBody ? event.body : undefined) || event.body;
       const record = {
         userId,
         chatId: event.chatId,

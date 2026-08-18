@@ -21,18 +21,20 @@ export function registerDeletedMessageRoutes(fastify: FastifyInstance) {
   fastify.get('/api/deleted-messages', { onRequest: [fastify.authenticate] }, async (request) => {
     const user = (request as any).user;
     const isAdmin = isAdminUser(user);
-    const userId = user?.id || user?.username || '';
+    const userId = user?.username || user?.id || '';
+    const altUserId = user?.id || user?.username || '';
     const q = listQuerySchema.parse(request.query || {});
 
     const { messages, total } = await db.listDeletedMessages({
       userId,
+      altUserId,
       isOwnerOrAdmin: isAdmin,
       search: q.search,
       chatId: q.chatId,
       fromMe: q.fromMe === undefined ? undefined : q.fromMe === 'true',
       page: toPage(q.page, 1),
       pageSize: toPage(q.pageSize, 25),
-    });
+    } as any);
     return { messages, total, page: toPage(q.page, 1), pageSize: toPage(q.pageSize, 25) };
   });
 

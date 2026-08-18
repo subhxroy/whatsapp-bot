@@ -30,17 +30,19 @@ export function registerMessageHistoryRoutes(fastify: FastifyInstance) {
 
     const user = (request as any).user;
     const isAdmin = isAdminUser(user);
-    const userId = user?.id || user?.username || '';
+    const userId = user?.username || user?.id || '';
+    const altUserId = user?.id || user?.username || '';
     const q = listQuerySchema.parse(request.query || {});
 
     const messages = await db.listMessageHistory({
       userId,
+      altUserId,
       isOwnerOrAdmin: isAdmin,
       chatId: q.chatId,
       senderNumber: q.senderNumber,
       limit: toLimit(q.limit, 50),
       before: q.before,
-    });
+    } as any);
     return { messages };
   });
 }

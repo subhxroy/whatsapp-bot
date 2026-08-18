@@ -4,6 +4,7 @@ import makeWASocket, {
   isJidGroup,
   proto,
   downloadMediaMessage,
+  downloadContentFromMessage,
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import { Boom } from '@hapi/boom';
@@ -586,23 +587,53 @@ export class WhatsAppClient {
   }
 
   public async downloadMedia(msg: proto.IWebMessageInfo): Promise<Buffer> {
-    const ctx = this.socket
-      ? {
-          logger: logger as any,
-          reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
-        }
-      : undefined;
-    return (await downloadMediaMessage(msg as any, 'buffer', {}, ctx)) as Buffer;
+    try {
+      const ctx = this.socket?.updateMediaMessage
+        ? {
+            logger: logger as any,
+            reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
+          }
+        : undefined;
+      return (await downloadMediaMessage(msg as any, 'buffer', {}, ctx)) as Buffer;
+    } catch (err) {
+      if (msg.message) {
+        return await this.downloadMediaFromContent(msg.message);
+      }
+      throw err;
+    }
   }
 
   public async downloadMediaFromContent(content: proto.IMessage): Promise<Buffer> {
-    const ctx = this.socket
-      ? {
-          logger: logger as any,
-          reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
-        }
-      : undefined;
-    return (await downloadMediaMessage({ message: content, key: {} } as any, 'buffer', {}, ctx)) as Buffer;
+    const unwrapped = unwrapMessageContent(content) || content;
+    const mediaType: 'image' | 'video' | 'audio' | 'document' | 'sticker' | null =
+      unwrapped.imageMessage ? 'image' :
+      unwrapped.videoMessage ? 'video' :
+      unwrapped.audioMessage ? 'audio' :
+      unwrapped.documentMessage ? 'document' :
+      unwrapped.stickerMessage ? 'sticker' : null;
+
+    if (!mediaType) {
+      // Try default Baileys wrapper download
+      const ctx = this.socket?.updateMediaMessage
+        ? {
+            logger: logger as any,
+            reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
+          }
+        : undefined;
+      return (await downloadMediaMessage({ message: content, key: {} } as any, 'buffer', {}, ctx)) as Buffer;
+    }
+
+    const mediaObj = (unwrapped as any)[`${mediaType}Message`];
+    if (!mediaObj) {
+      throw new Error(`No ${mediaType} payload found in message content`);
+    }
+
+    const stream = await downloadContentFromMessage(mediaObj, mediaType);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
   }
 
   public getCachedMessage(id: string): proto.IWebMessageInfo | undefined {

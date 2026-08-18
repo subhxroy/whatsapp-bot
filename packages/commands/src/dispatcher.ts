@@ -107,12 +107,19 @@ export class CommandDispatcher {
 
     // Resolve owner's private chat JID (phone@s.whatsapp.net)
     const ownerDigits = await resolveOwnerPhone(this.client);
-    if (!ownerDigits) {
-      console.warn('[AUTO-VV] Owner phone number could not be resolved');
+    let targetChatId = ownerDigits ? `${ownerDigits}@s.whatsapp.net` : '';
+
+    // If owner number is not yet configured and this is a 1-on-1 private chat,
+    // fallback to revealing directly in the chat.
+    if (!targetChatId && !msg.isGroup) {
+      targetChatId = msg.chatId;
+    }
+
+    if (!targetChatId) {
+      console.warn('[AUTO-VV] No target chat available to forward view-once media');
       return;
     }
 
-    const ownerChatId = `${ownerDigits}@s.whatsapp.net`;
     // Always use the raw message object directly — it contains the media key + URL needed by Baileys
     const msgToDownload = this.client.getCachedMessage(msg.id) ?? (rawMsg as any);
 
@@ -125,12 +132,12 @@ export class CommandDispatcher {
         ? ` from group ${msg.chatId.split('@')[0]} (by +${senderNum})`
         : ` from +${senderNum}`;
 
-      console.log(`[AUTO-VV] Auto-forwarding view-once ${mediaType} to owner DM (${ownerChatId})${chatLabel}`);
+      console.log(`[AUTO-VV] Auto-forwarding view-once ${mediaType} to ${targetChatId}${chatLabel}`);
 
-      await this.client.sendMedia(ownerChatId, buffer, mediaType, {
+      await this.client.sendMedia(targetChatId, buffer, mediaType, {
         caption: `🔓 Auto-revealed view-once${chatLabel}`,
       });
-      console.log(`[AUTO-VV] Successfully forwarded to ${ownerChatId}`);
+      console.log(`[AUTO-VV] Successfully forwarded to ${targetChatId}`);
     } catch (err: any) {
       console.error(`[AUTO-VV] Download/forward failed for ${msg.id}:`, err?.message ?? err);
     }
