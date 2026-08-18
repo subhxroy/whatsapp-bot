@@ -1,4 +1,4 @@
-import { NormalizedMessage, WhatsAppClient } from '@private-md-bot/whatsapp';
+import { NormalizedMessage, WhatsAppClient, unwrapMessageContent } from '@private-md-bot/whatsapp';
 import { registry } from './registry';
 import { processAutoReplies } from './auto-reply';
 import { getEnv } from '@private-md-bot/config';
@@ -7,11 +7,14 @@ import { db } from '@private-md-bot/database';
 
 const extractViewOnceContent = (content: any): any => {
   if (!content) return null;
+  const unwrapped = unwrapMessageContent(content);
+  if (unwrapped) return unwrapped;
   return (
     content.viewOnceMessage?.message ||
     content.viewOnceMessageV2?.message ||
     content.viewOnceMessageV2Extension?.message ||
-    null
+    content.ephemeralMessage?.message ||
+    content
   );
 };
 
@@ -31,11 +34,9 @@ const deniedCommandRateLimiter = new RateLimiter(30_000, 3); // deny reply at mo
  * Source of truth priority:
  *   1. Firestore `settings/BOT_OWNER_NUMBER` (written by the dashboard)
  *   2. Env `BOT_OWNER_NUMBER` (bootstrap fallback)
- *
- * The value is resolved per-message so dashboard changes take effect WITHOUT a
- * restart. Missing/empty configuration yields '' — authorization FAILS CLOSED.
+ *   3. Connected client phone number (the account running the bot)
  */
-async function resolveOwnerPhone(): Promise<string> {
+async function resolveOwnerPhone(client?: WhatsAppClient): Promise<string> {
   try {
     const dbSetting = await db.getSetting('BOT_OWNER_NUMBER');
     const dbDigits = normalizePhoneNumber(dbSetting?.value);
@@ -43,7 +44,13 @@ async function resolveOwnerPhone(): Promise<string> {
   } catch {
     // Firestore unavailable — fall through to env
   }
-  return normalizePhoneNumber(getEnv().BOT_OWNER_NUMBER || '');
+  const envPhone = normalizePhoneNumber(getEnv().BOT_OWNER_NUMBER || '');
+  if (envPhone) return envPhone;
+
+  const connected = client?.getConnectedPhone();
+  if (connected) return normalizePhoneNumber(connected);
+
+  return '';
 }
 
 export class CommandDispatcher {
@@ -89,25 +96,37 @@ export class CommandDispatcher {
     if (!mediaType) return;
 
     // Resolve owner's private chat JID (phone@s.whatsapp.net)
-    const ownerDigits = await resolveOwnerPhone();
-    if (!ownerDigits) return;
+    const ownerDigits = await resolveOwnerPhone(this.client);
+    if (!ownerDigits) {
+      console.warn('[AUTO-VV] Owner phone number could not be resolved');
+      return;
+    }
 
     const ownerChatId = `${ownerDigits}@s.whatsapp.net`;
-
-    // Use cached full message (preserves full media keys/directPath)
-    const cachedMsg = this.client.getCachedMessage(msg.id);
+    const cachedMsg = this.client.getCachedMessage(msg.id) || msg.rawMessage;
 
     try {
-      const buffer = cachedMsg
-        ? await this.client.downloadMedia(cachedMsg)
-        : await this.client.downloadMediaFromContent(inner);
+      let buffer: Buffer;
+      try {
+        buffer = cachedMsg
+          ? await this.client.downloadMedia(cachedMsg)
+          : await this.client.downloadMediaFromContent(inner);
+      } catch {
+        buffer = await this.client.downloadMediaFromContent(inner);
+      }
 
-      const chatLabel = msg.isGroup ? ` from ${msg.chatId.split('@')[0]}` : '';
+      const senderNum = msg.senderNumber || msg.senderJid.split('@')[0].split(':')[0];
+      const chatLabel = msg.isGroup
+        ? ` from group ${msg.chatId.split('@')[0]} (by +${senderNum})`
+        : ` from +${senderNum}`;
+
+      console.log(`[AUTO-VV] Auto-forwarding view-once ${mediaType} to owner DM (${ownerChatId})${chatLabel}`);
+
       await this.client.sendMedia(ownerChatId, buffer, mediaType, {
-        caption: `Auto-revealed view-once${chatLabel}`,
+        caption: `🔓 Auto-revealed view-once${chatLabel}`,
       });
     } catch (err: any) {
-      console.error(`Auto-vv download failed for ${msg.id}:`, err.message);
+      console.error(`[AUTO-VV] Download/forward failed for ${msg.id}:`, err.message);
     }
   }
 

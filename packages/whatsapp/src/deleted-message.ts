@@ -31,6 +31,40 @@ export function unwrapMessageContent(msgContent: proto.IMessage | null | undefin
   return current as proto.IMessage;
 }
 
+export function isViewOnceMessage(msgContent: proto.IMessage | null | undefined): boolean {
+  if (!msgContent) return false;
+  let current: any = msgContent;
+
+  while (current) {
+    if (
+      current.viewOnceMessage ||
+      current.viewOnceMessageV2 ||
+      current.viewOnceMessageV2Extension
+    ) {
+      return true;
+    }
+    if (
+      current.imageMessage?.viewOnce ||
+      current.videoMessage?.viewOnce ||
+      current.audioMessage?.viewOnce
+    ) {
+      return true;
+    }
+    if (current.ephemeralMessage?.message) {
+      current = current.ephemeralMessage.message;
+    } else if (current.deviceSentMessage?.message) {
+      current = current.deviceSentMessage.message;
+    } else if (current.documentWithCaptionMessage?.message) {
+      current = current.documentWithCaptionMessage.message;
+    } else if (current.editedMessage?.message?.protocolMessage?.editedMessage) {
+      current = current.editedMessage.message.protocolMessage.editedMessage;
+    } else {
+      break;
+    }
+  }
+  return false;
+}
+
 export function extractContextInfo(messageContent: proto.IMessage | null | undefined): any {
   if (!messageContent) return {};
   const candidates = [

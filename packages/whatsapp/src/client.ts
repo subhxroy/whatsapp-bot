@@ -15,6 +15,7 @@ import {
   getMessageBodyType,
   messageTimestampMs,
   unwrapMessageContent,
+  isViewOnceMessage,
 } from './deleted-message';
 import {
   ConnectionStatus,
@@ -695,10 +696,7 @@ export class WhatsAppClient {
     const finalContent = unwrapMessageContent(messageContent);
     if (!finalContent) return null;
 
-    const isViewOnce =
-      !!messageContent.viewOnceMessage ||
-      !!messageContent.viewOnceMessageV2 ||
-      !!messageContent.viewOnceMessageV2Extension;
+    const isViewOnce = isViewOnceMessage(messageContent);
 
     let body =
       finalContent.conversation ||
