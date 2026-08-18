@@ -116,3 +116,11 @@ export function getAIProvider(provider: AIProviderType = 'gemini'): AIProvider {
       throw new Error(`Unknown AI provider: ${provider}`);
   }
 }
+
+export async function generateText(
+  prompt: string,
+  options: { systemPrompt?: string; provider?: AIProviderType } = {}
+): Promise<AIResponse> {
+  const provider = getAIProvider(options.provider || 'gemini');
+  return provider.generateText(prompt, options);
+}

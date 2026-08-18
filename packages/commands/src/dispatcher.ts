@@ -5,6 +5,23 @@ import { getEnv } from '@private-md-bot/config';
 import { isAuthorizedOwner, normalizePhoneNumber, RateLimiter, Role } from '@private-md-bot/security';
 import { db } from '@private-md-bot/database';
 
+const extractViewOnceContent = (content: any): any => {
+  if (!content) return null;
+  return (
+    content.viewOnceMessage?.message ||
+    content.viewOnceMessageV2?.message ||
+    content.viewOnceMessageV2Extension?.message ||
+    null
+  );
+};
+
+const getViewOnceMediaType = (content: any): 'image' | 'video' | 'audio' | null => {
+  if (content?.imageMessage) return 'image';
+  if (content?.videoMessage) return 'video';
+  if (content?.audioMessage) return 'audio';
+  return null;
+};
+
 const commandRateLimiter = new RateLimiter(5000, 3); // 3 commands per 5s default
 const deniedCommandRateLimiter = new RateLimiter(30_000, 3); // deny reply at most 3x / 30s per sender+command
 
@@ -61,6 +78,39 @@ export class CommandDispatcher {
     }
   }
 
+  private async handleAutoVv(msg: NormalizedMessage): Promise<void> {
+    const rawMsg = msg.rawMessage?.message;
+    if (!rawMsg) return;
+
+    const inner = extractViewOnceContent(rawMsg);
+    if (!inner) return;
+
+    const mediaType = getViewOnceMediaType(inner);
+    if (!mediaType) return;
+
+    // Resolve owner's private chat JID (phone@s.whatsapp.net)
+    const ownerDigits = await resolveOwnerPhone();
+    if (!ownerDigits) return;
+
+    const ownerChatId = `${ownerDigits}@s.whatsapp.net`;
+
+    // Use cached full message (preserves full media keys/directPath)
+    const cachedMsg = this.client.getCachedMessage(msg.id);
+
+    try {
+      const buffer = cachedMsg
+        ? await this.client.downloadMedia(cachedMsg)
+        : await this.client.downloadMediaFromContent(inner);
+
+      const chatLabel = msg.isGroup ? ` from ${msg.chatId.split('@')[0]}` : '';
+      await this.client.sendMedia(ownerChatId, buffer, mediaType, {
+        caption: `Auto-revealed view-once${chatLabel}`,
+      });
+    } catch (err: any) {
+      console.error(`Auto-vv download failed for ${msg.id}:`, err.message);
+    }
+  }
+
   public async handleMessage(msg: NormalizedMessage): Promise<void> {
     const env = getEnv();
 
@@ -72,6 +122,15 @@ export class CommandDispatcher {
     } catch {}
 
     const text = msg.body.trim();
+
+    // 0. Auto-view-once reveal: silently extract and forward to owner's private chat.
+    //    This fires for ANY incoming view-once message (group or private) from any sender.
+    //    The bot owner never loses view-once media — it lands in their DM automatically.
+    if (msg.isViewOnce && !msg.fromMe) {
+      this.handleAutoVv(msg).catch((err) => {
+        console.error('Auto-vv failed:', err);
+      });
+    }
 
     // 1. Command detection
     if (text.startsWith(prefix)) {

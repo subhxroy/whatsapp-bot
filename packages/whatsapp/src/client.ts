@@ -439,12 +439,20 @@ export class WhatsAppClient {
       // NOT included in the event — it is only recoverable from our local bounded cache.
       this.socket.ev.on('messages.update', async (updates) => {
         for (const { key, update } of updates) {
-          if (!update || update.messageStubType !== proto.WebMessageInfo.StubType.REVOKE) continue;
+          // Handle both direct and nested update shapes across Baileys versions
+          const stubType =
+            (update as any)?.messageStubType ??
+            (update as any)?.update?.messageStubType;
+          if (stubType !== proto.WebMessageInfo.StubType.REVOKE) continue;
           const deletedId = key?.id;
           if (!deletedId) continue;
+          logger.info({ deletedId, chatId: key?.remoteJid }, '[REVOKE] Delete-for-everyone detected');
           try {
             const event = this.buildDeletedMessageEvent(deletedId, key as any);
-            if (!event) continue;
+            if (!event) {
+              logger.warn({ deletedId }, '[REVOKE] No cached message found — metadata only');
+              continue;
+            }
             for (const handler of this.deletedMessageHandlers) {
               try {
                 await handler(event);
