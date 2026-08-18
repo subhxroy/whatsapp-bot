@@ -586,11 +586,23 @@ export class WhatsAppClient {
   }
 
   public async downloadMedia(msg: proto.IWebMessageInfo): Promise<Buffer> {
-    return (await downloadMediaMessage(msg as any, 'buffer', {})) as Buffer;
+    const ctx = this.socket
+      ? {
+          logger: logger as any,
+          reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
+        }
+      : undefined;
+    return (await downloadMediaMessage(msg as any, 'buffer', {}, ctx)) as Buffer;
   }
 
   public async downloadMediaFromContent(content: proto.IMessage): Promise<Buffer> {
-    return (await downloadMediaMessage({ message: content } as any, 'buffer', {})) as Buffer;
+    const ctx = this.socket
+      ? {
+          logger: logger as any,
+          reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
+        }
+      : undefined;
+    return (await downloadMediaMessage({ message: content, key: {} } as any, 'buffer', {}, ctx)) as Buffer;
   }
 
   public getCachedMessage(id: string): proto.IWebMessageInfo | undefined {

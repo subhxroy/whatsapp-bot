@@ -86,14 +86,24 @@ export class CommandDispatcher {
   }
 
   private async handleAutoVv(msg: NormalizedMessage): Promise<void> {
-    const rawMsg = msg.rawMessage?.message;
-    if (!rawMsg) return;
+    const rawMsg = msg.rawMessage as any;
+    if (!rawMsg?.message) {
+      console.warn('[AUTO-VV] No rawMessage.message, skipping');
+      return;
+    }
 
-    const inner = extractViewOnceContent(rawMsg);
-    if (!inner) return;
+    // Unwrap view-once envelope to get the actual inner IMessage
+    const inner = extractViewOnceContent(rawMsg.message);
+    if (!inner) {
+      console.warn('[AUTO-VV] Could not extract inner content');
+      return;
+    }
 
     const mediaType = getViewOnceMediaType(inner);
-    if (!mediaType) return;
+    if (!mediaType) {
+      console.warn('[AUTO-VV] No media type found in inner content, skipping');
+      return;
+    }
 
     // Resolve owner's private chat JID (phone@s.whatsapp.net)
     const ownerDigits = await resolveOwnerPhone(this.client);
@@ -103,17 +113,12 @@ export class CommandDispatcher {
     }
 
     const ownerChatId = `${ownerDigits}@s.whatsapp.net`;
-    const cachedMsg = this.client.getCachedMessage(msg.id) || msg.rawMessage;
+    // Always use the raw message object directly — it contains the media key + URL needed by Baileys
+    const msgToDownload = this.client.getCachedMessage(msg.id) ?? (rawMsg as any);
 
     try {
-      let buffer: Buffer;
-      try {
-        buffer = cachedMsg
-          ? await this.client.downloadMedia(cachedMsg)
-          : await this.client.downloadMediaFromContent(inner);
-      } catch {
-        buffer = await this.client.downloadMediaFromContent(inner);
-      }
+      console.log(`[AUTO-VV] Attempting download of view-once ${mediaType} (msg ${msg.id})`);
+      const buffer = await this.client.downloadMedia(msgToDownload);
 
       const senderNum = msg.senderNumber || msg.senderJid.split('@')[0].split(':')[0];
       const chatLabel = msg.isGroup
@@ -125,8 +130,9 @@ export class CommandDispatcher {
       await this.client.sendMedia(ownerChatId, buffer, mediaType, {
         caption: `🔓 Auto-revealed view-once${chatLabel}`,
       });
+      console.log(`[AUTO-VV] Successfully forwarded to ${ownerChatId}`);
     } catch (err: any) {
-      console.error(`[AUTO-VV] Download/forward failed for ${msg.id}:`, err.message);
+      console.error(`[AUTO-VV] Download/forward failed for ${msg.id}:`, err?.message ?? err);
     }
   }
 
